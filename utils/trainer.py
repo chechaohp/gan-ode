@@ -9,7 +9,7 @@ from torch.optim.lr_scheduler import ExponentialLR, ReduceLROnPlateau, StepLR, M
 
 from models.Generator import Generator
 from models.Discriminators import SpatialDiscriminator, TemporalDiscriminator
-from utils.utils import set_device
+from utils.utils import *
 
 
 class Trainer(object):
@@ -20,7 +20,7 @@ class Trainer(object):
 
         # exact model and loss
         self.model = config.MODEL.NAME
-        self.adv_loss = config.TRAINING.LOSS
+        self.adv_loss = config.TRAIN.LOSS
 
         # Model hyper-parameters
         self.imsize = config.MODEL.IMAGE_SIZE
@@ -32,43 +32,43 @@ class Trainer(object):
         self.n_frames = config.MODEL.N_FRAMES
         self.g_conv_dim = config.MODEL.G_CONV_DIM
         self.d_conv_dim = config.MODEL.D_CONV_DIM
-        self.lr_schr = config.TRAINING.LR_CHR
+        self.lr_schr = config.TRAIN.LR_CHR
 
-        self.lambda_gp = config.TRAINING.LAMBDA_GP
-        self.total_epoch = config.TRAINING.TOTAL_EPOCH
-        self.d_iters = config.TRAINING.D_ITERS
-        self.g_iters = config.TRAINING.G_ITERS
-        self.batch_size = config.TRAINING.BATCH_SIZE
-        self.num_workers = config.TRAINING.NUM_WORKERS
-        self.g_lr = config.TRAINING.G_LR
-        self.d_lr = config.TRAINING.D_LR
-        self.lr_decay = config.TRAINING.LR_DECAY
-        self.beta1 = config.TRAINING.BETA1
-        self.beta2 = config.TRAINING.BETA2
-        self.pretrained_model = config.pretrained_model
+        self.lambda_gp = config.TRAIN.LAMBDA_GP
+        self.total_epoch = config.TRAIN.TOTAL_EPOCH
+        self.d_iters = config.TRAIN.D_ITERS
+        self.g_iters = config.TRAIN.G_ITERS
+        self.batch_size = config.TRAIN.BATCH_SIZE
+        self.num_workers = config.TRAIN.NUM_WORKERS
+        self.g_lr = config.TRAIN.G_LR
+        self.d_lr = config.TRAIN.D_LR
+        self.lr_decay = config.TRAIN.LR_DECAY
+        self.beta1 = config.TRAIN.BETA1
+        self.beta2 = config.TRAIN.BETA2
+        self.pretrained_model = config.TRAIN.PRETRAIN
 
-        self.n_class = config.n_class
-        self.k_sample = config.k_sample
-        self.dataset = config.dataset
-        self.use_tensorboard = config.use_tensorboard
-        self.test_batch_size = config.test_batch_size
+        self.n_class = config.DATASET.N_CLASS
+        self.k_sample = config.DATASET.K_SAMPLE
+        self.dataset = config.DATASET.NAME
+        self.use_tensorboard = config.OTHER.USE_TENSORBOARD
+        self.test_batch_size = config.OTHER.TEST_BATCH_SIZE
 
         # path
-        self.image_path = config.image_path
-        self.log_path = config.log_path
-        self.model_save_path = config.model_save_path
-        self.sample_path = config.sample_path
+        self.image_path = config.DATASET.IMAGE_PATH
+        self.log_path = config.LOG.LOG_PATH
+        self.model_save_path = config.LOG.MODEL_SAVE_PATH
+        self.sample_path = config.LOG.SAMPLE_PATH
 
         # epoch size
-        self.log_epoch = config.log_epoch
-        self.sample_epoch = config.sample_epoch
-        self.model_save_epoch = config.model_save_epoch
-        self.version = config.version
+        self.log_epoch = config.LOG.LOG_EPOCH
+        self.sample_epoch = config.LOG.SAMPLE_EPOCH
+        self.model_save_epoch = config.LOG.MODEL_SAVE_EPOCH
+        self.version = config.VERSION
 
         # Path
-        self.log_path = os.path.join(config.log_path, self.version)
-        self.sample_path = os.path.join(config.sample_path, self.version)
-        self.model_save_path = os.path.join(config.model_save_path, self.version)
+        self.log_path = os.path.join(self.log_path, self.version)
+        self.sample_path = os.path.join(self.sample_path, self.version)
+        self.model_save_path = os.path.join(self.model_save_path, self.version)
 
         self.device, self.parallel, self.gpus = set_device(config)
 

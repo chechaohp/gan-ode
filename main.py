@@ -1,9 +1,9 @@
-from trainer import Trainer
+from utils.trainer import Trainer
 # from tester import Tester
-from data_loader import Data_Loader
+from dataset.data_loader import Data_Loader
 from torch.backends import cudnn
 from utils import make_folder
-from parameter import get_parameters
+from config import cfg
 
 import os
 import torch
@@ -11,76 +11,76 @@ import torch
 
 ##### Import libary for dataloader #####
 ##### https://github.com/kenshohara/3D-ResNets-PyTorch/blob/master/main.py
-from Dataloader.transform.spatial_transforms import (
+from dataset.transform.spatial_transforms import (
     Compose, Normalize, Scale, CenterCrop, CornerCrop, MultiScaleCornerCrop,
     MultiScaleRandomCrop, RandomHorizontalFlip, ToTensor)
-from Dataloader.transform.temporal_transforms import LoopPadding, TemporalRandomCrop
-from Dataloader.transform.target_transforms import ClassLabel, VideoID
-from Dataloader.transform.target_transforms import Compose as TargetCompose
-from Dataloader.dataloader import get_training_set, get_validation_set, get_test_set
-from Dataloader.mean import get_mean
+from dataset.transform.temporal_transforms import LoopPadding, TemporalRandomCrop
+from dataset.transform.target_transforms import ClassLabel, VideoID
+from dataset.transform.target_transforms import Compose as TargetCompose
+from utils.get_dataset import get_training_set, get_validation_set, get_test_set
+from dataset.mean import get_mean
 
 
-def main(config):
+def main():
     # For fast training
     cudnn.benchmark = True
 
     ##### Dataloader #####
-    config.video_path = os.path.join(config.root_path, config.video_path)
-    config.annotation_path = os.path.join(config.root_path, config.annotation_path)
-    config.mean = get_mean(config.norm_value, dataset=config.mean_dataset)
+    cfg.DATASET.VIDEO_PATH = os.path.join(cfg.DATASET.ROOT_PATH, cfg.DATASET.VIDEO_PATH)
+    cfg.DATASET.ANNOTATION_PATH = os.path.join(cfg.DATASET.ROOT_PATH, cfg.DATASET.ANNOTATION_PATH)
+    cfg.DATASET.MEAN = get_mean(cfg.DATASET.NORM_VALUE, dataset=cfg.DATASET.MEAN_DATASET)
 
-    if config.no_mean_norm and not config.std_norm:
+    if cfg.DATASET.NO_MEAN_NORM and not cfg.DATASET.STD_NORM:
         norm_method = Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-    elif not config.std_norm:
-        norm_method = Normalize(config.mean, [1, 1, 1])
+    elif not cfg.DATASET.STD_NORM:
+        norm_method = Normalize(cfg.mean, [1, 1, 1])
 
-    config.scales = [config.initial_scale]
-    for i in range(1, config.n_scales):
-        config.scales.append(config.scales[-1] * config.scale_step)
+    cfg.DATASET.SCALES = [cfg.DATASET.INITIAL_SCALE]
+    for i in range(1, cfg.DATASET.N_SCALES):
+        cfg.scales.append(cfg.DATASET.SCALES[-1] * cfg.DATASET.SCALE_STEP)
 
-    if config.train:
-        assert config.train_crop in ['random', 'corner', 'center']
-        if config.train_crop == 'random':
-            crop_method = MultiScaleRandomCrop(config.scales, config.sample_size)
-        elif config.train_crop == 'corner':
-            crop_method = MultiScaleCornerCrop(config.scales, config.sample_size)
-        elif config.train_crop == 'center':
+    if cfg.TRAIN.MODE:
+        assert cfg.train_crop in ['random', 'corner', 'center']
+        if cfg.TRAIN.TRAIN_CROP == 'random':
+            crop_method = MultiScaleRandomCrop(cfg.DATASET.SCALES, cfg.DATASET.SAMPLE_SIZE)
+        elif cfg.TRAIN.TRAIN_CROP == 'corner':
+            crop_method = MultiScaleCornerCrop(cfg.DATASET.SCALES, cfg.DATASET.SAMPLE_SIZE)
+        elif cfg.TRAIN.TRAIN_CROP == 'center':
             crop_method = MultiScaleCornerCrop(
-                config.scales, config.sample_size, crop_positions=['c'])
+                cfg.DATASET.SCALES, cfg.DATASET.SAMPLE_SIZE, crop_positions=['c'])
         spatial_transform = Compose([
             crop_method,
             RandomHorizontalFlip(),
-            ToTensor(config.norm_value), norm_method
+            ToTensor(cfg.DATASET.NORM_VALUE), norm_method
         ])
-        temporal_transform = TemporalRandomCrop(config.n_frames)
+        temporal_transform = TemporalRandomCrop(cfg.DATASET.N_FRAMES)
         target_transform = ClassLabel()
 
         print("="*30,"\nLoading data...")
-        training_data = get_training_set(config, spatial_transform,
+        training_data = get_training_set(cfg, spatial_transform,
                                          temporal_transform, target_transform)
 
         train_loader = torch.utils.data.DataLoader(
             training_data,
-            batch_size=config.batch_size,
+            batch_size=cfg.TRAIN.BATCH_SIZE,
             shuffle=True,
-            num_workers=config.num_workers,
+            num_workers=cfg.TRAIN.NUM_WORKSERS,
             pin_memory=True)
     else:
         spatial_transform = Compose([
-            Scale(config.sample_size),
-            CenterCrop(config.sample_size),
-            ToTensor(config.norm_value), norm_method
+            Scale(cfg.DATASET.SAMPLE_SIZE),
+            CenterCrop(cfg.DATASET.SAMPLE_SIZE),
+            ToTensor(cfg.DATASET.NORM_VALUE), norm_method
         ])
-        temporal_transform = LoopPadding(config.n_frames)
+        temporal_transform = LoopPadding(cfg.DATASET.N_FRAMES)
         target_transform = ClassLabel()
         validation_data = get_validation_set(
-            config, spatial_transform, temporal_transform, target_transform)
+            cfg, spatial_transform, temporal_transform, target_transform)
         val_loader = torch.utils.data.DataLoader(
             validation_data,
-            batch_size=config.batch_size,
+            batch_size=cfg.TRAIN.BATCH_SIZE,
             shuffle=False,
-            num_workers=config.num_workers,
+            num_workers=cfg.TRAIN.NUM_WORKSERS,
             pin_memory=True)
 
     ##### End dataloader #####
@@ -89,35 +89,31 @@ def main(config):
     # The random data is used in the trainer
     # Need to pre-process data and use the dataloader (above)
 
-    # config.n_class = len(glob.glob(os.path.join(config.root_path, config.video_path)))
+    # cfg.n_class = len(glob.glob(os.path.join(cfg.root_path, cfg.video_path)))
 
     ## Data loader
-    print('number class:', config.n_class)
+    print('number class:', cfg.DATASET.N_CLASS)
     # # Data loader
-    # data_loader = Data_Loader(config.train, config.dataset, config.image_path, config.imsize,
-    #                          config.batch_size, shuf=config.train)
+    # data_loader = Data_Loader(cfg.train, cfg.dataset, cfg.image_path, cfg.imsize,
+    #                          cfg.batch_size, shuf=cfg.train)
 
     # Create directories if not exist
-    make_folder(config.model_save_path, config.version)
-    # make_folder(config.sample_path, config.version)
-    make_folder(config.log_path, config.version)
+    make_folder(cfg.LOG.MODEL_SAVE_PATH, cfg.VERSION)
+    # make_folder(cfg.sample_path, cfg.version)
+    make_folder(cfg.LOG.LOG_PATH, cfg.VERSION)
 
-    if config.train:
-        if config.model=='dvd-gan':
-            trainer = Trainer(train_loader, config) 
+    if cfg.train:
+        if cfg.MODEL.NAME=='dvd-gan':
+            trainer = Trainer(train_loader, cfg) 
         else:
             trainer = None
 
         trainer.train()
     else:
-        tester = Tester(val_loader, config)
+        tester = Tester(val_loader, cfg)
         tester.test()
 
 
 if __name__ == '__main__':
-    config = get_parameters()
-
-    for key in config.__dict__.keys():
-        print(key, "=", config.__dict__[key])
-
-    main(config)
+    print(cfg)
+    main()
