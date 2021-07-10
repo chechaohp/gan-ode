@@ -99,7 +99,7 @@ def main():
 
     # Create directories if not exist
     make_folder(cfg.LOG.MODEL_SAVE_PATH, cfg.VERSION)
-    # make_folder(cfg.sample_path, cfg.version)
+    make_folder(cfg.LOG.SAMPLE_PATH, cfg.VERSION)
     make_folder(cfg.LOG.LOG_PATH, cfg.VERSION)
 
     if cfg.TRAIN.MODE:

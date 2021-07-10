@@ -192,10 +192,10 @@ class Trainer(object):
         # Data iterator
         data_iter = iter(self.data_loader)
         self.epoch2step()
-
+        print('total class:',self.n_class)
         fixed_z = torch.randn(self.test_batch_size * self.n_class, self.z_dim).to(self.device)
         # fixed_label = torch.randint(low=0, high=self.n_class, size=(self.test_batch_size, )).to(self.device)
-        fixed_label = torch.tensor([i for i in range(self.n_class) for j in range(self.test_batch_size)])
+        fixed_label = torch.tensor([i for i in range(self.n_class) for j in range(self.test_batch_size)]).to(self.device)
 
         # Start with trained model
         if self.pretrained_model:
@@ -206,13 +206,12 @@ class Trainer(object):
         # Start time
         print("=" * 30, "\nStart training...")
         start_time = time.time()
-
         self.D_s.train()
         self.D_t.train()
         self.G.train()
 
         for step in range(start, self.total_step + 1):
-
+            # print(f'Step: {step}')
             # real_videos, real_labels = self.gen_real_video(data_iter)
             try:
                 real_videos, real_labels = next(data_iter)
@@ -313,8 +312,10 @@ class Trainer(object):
                 elapsed = time.time() - start_time
                 elapsed = str(datetime.timedelta(seconds=elapsed))
                 start_time = time.time()
+                # log_str = "Epoch: [%d/%d], Step: [%d/%d], time: %s, ds_loss: %.4f, dt_loss: %.4f, g_s_loss: %.4f, g_t_loss: %.4f, g_loss: %.4f, lr: %.2e" % \
+                #     (self.epoch, self.total_epoch, step, self.total_step, elapsed, ds_loss, dt_loss, g_s_loss, g_t_loss, g_loss, self.g_lr_scher.get_lr()[0])
                 log_str = "Epoch: [%d/%d], Step: [%d/%d], time: %s, ds_loss: %.4f, dt_loss: %.4f, g_s_loss: %.4f, g_t_loss: %.4f, g_loss: %.4f, lr: %.2e" % \
-                    (self.epoch, self.total_epoch, step, self.total_step, elapsed, ds_loss, dt_loss, g_s_loss, g_t_loss, g_loss, self.g_lr_scher.get_lr()[0])
+                    (self.epoch, self.total_epoch, step, self.total_step, elapsed, ds_loss, dt_loss, g_s_loss, g_t_loss, g_loss, self.g_lr_scher.get_last_lr()[0])
 
                 if self.use_tensorboard is True:
                     write_log(self.writer, log_str, step, ds_loss_real, ds_loss_fake, ds_loss, dt_loss_real, dt_loss_fake, dt_loss, g_loss)
@@ -328,9 +329,9 @@ class Trainer(object):
                 for i in range(self.n_class):
                     for j in range(self.test_batch_size):
                         if self.use_tensorboard is True:
-                            self.writer.add_image("Class_%d_No.%d/Step_%d" % (i, j, step), make_grid(denorm(fake_videos[i * self.test_batch_size + j].data)), step)
+                            self.writer.add_image("Class_%d_No_%d_Step_%d" % (i, j, step), make_grid(denorm(fake_videos[i * self.test_batch_size + j].data)), step)
                         else:
-                            save_image(denorm(fake_videos[i * self.test_batch_size + j].data), os.path.join(self.sample_path, "Class_%d_No.%d_Step_%d" % (i, j, step)))
+                            save_image(denorm(fake_videos[i * self.test_batch_size + j].data), os.path.join(self.sample_path, "Class_%d_No_%d_Step_%d.jpeg" % (i, j, step)))
                 # print('Saved sample images {}_fake.png'.format(step))
                 self.G.train()
 
