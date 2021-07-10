@@ -32,7 +32,7 @@ class Trainer(object):
         self.n_frames = config.MODEL.N_FRAMES
         self.g_conv_dim = config.MODEL.G_CONV_DIM
         self.d_conv_dim = config.MODEL.D_CONV_DIM
-        self.lr_schr = config.TRAIN.LR_CHR
+        self.lr_schr = config.TRAIN.LR_SCHR
 
         self.lambda_gp = config.TRAIN.LAMBDA_GP
         self.total_epoch = config.TRAIN.TOTAL_EPOCH

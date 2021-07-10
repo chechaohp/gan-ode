@@ -9,8 +9,10 @@ def convert_csv_to_dict(csv_path, subset):
     keys = []
     key_labels = []
     for i in range(data.shape[0]):
-        row = data.ix[i, :]
-        slash_rows = data.ix[i, 0].split('/')
+        # row = data.ix[i, :]
+        # slash_rows = data.ix[i, 0].split('/')
+        row = data.iloc[i, :]
+        slash_rows = data.iloc[i, 0].split('/')
         class_name = slash_rows[0]
         basename = slash_rows[1].split('.')[0]
         
@@ -31,7 +33,8 @@ def load_labels(label_csv_path):
     data = pd.read_csv(label_csv_path, delimiter=' ', header=None)
     labels = []
     for i in range(data.shape[0]):
-        labels.append(data.ix[i, 1])
+        # labels.append(data.ix[i, 1])
+        labels.append(data.iloc[i, 1])
     return labels
 
 def convert_ucf101_csv_to_activitynet_json(label_csv_path, train_csv_path, 

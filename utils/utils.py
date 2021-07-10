@@ -9,18 +9,18 @@ def make_folder(path, version):
 
 def set_device(config):
 
-    if config.gpus == "": # cpu
+    if len(config.TRAIN.GPUS) == 0: # cpu
         return 'cpu', False, ""
     else:
-        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(config.gpus)
+        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(config.TRAIN.GPUS)
 
         if torch.cuda.is_available() is False: # cpu
             return 'cpu', False, ""
         else:
             # gpus = config.gpus.split(',') # if config.gpus is a list
             # gpus = (',').join(list(map(str, range(0, len(gpus))))) # generate a list of string number from 0 to len(config.gpus)
-            gpus = list(range(len(config.gpus)))
-            if config.parallel is True and len(gpus) > 1: # multi gpus
+            gpus = list(range(len(config.TRAIN.GPUS)))
+            if config.TRAIN.PARALLEL is True and len(gpus) > 1: # multi gpus
                 return 'cuda:0', True, gpus
             else: # single gpu
                 return 'cuda:'+ str(gpus[0]), False, gpus

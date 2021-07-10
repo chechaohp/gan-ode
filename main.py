@@ -2,7 +2,7 @@ from utils.trainer import Trainer
 # from tester import Tester
 from dataset.data_loader import Data_Loader
 from torch.backends import cudnn
-from utils import make_folder
+from utils.utils import make_folder
 from config import cfg
 
 import os
@@ -37,10 +37,10 @@ def main():
 
     cfg.DATASET.SCALES = [cfg.DATASET.INITIAL_SCALE]
     for i in range(1, cfg.DATASET.N_SCALES):
-        cfg.scales.append(cfg.DATASET.SCALES[-1] * cfg.DATASET.SCALE_STEP)
+        cfg.DATASET.SCALES.append(cfg.DATASET.SCALES[-1] * cfg.DATASET.SCALE_STEP)
 
     if cfg.TRAIN.MODE:
-        assert cfg.train_crop in ['random', 'corner', 'center']
+        assert cfg.TRAIN.TRAIN_CROP in ['random', 'corner', 'center']
         if cfg.TRAIN.TRAIN_CROP == 'random':
             crop_method = MultiScaleRandomCrop(cfg.DATASET.SCALES, cfg.DATASET.SAMPLE_SIZE)
         elif cfg.TRAIN.TRAIN_CROP == 'corner':
@@ -64,7 +64,7 @@ def main():
             training_data,
             batch_size=cfg.TRAIN.BATCH_SIZE,
             shuffle=True,
-            num_workers=cfg.TRAIN.NUM_WORKSERS,
+            num_workers=cfg.TRAIN.NUM_WORKERS,
             pin_memory=True)
     else:
         spatial_transform = Compose([
@@ -102,8 +102,8 @@ def main():
     # make_folder(cfg.sample_path, cfg.version)
     make_folder(cfg.LOG.LOG_PATH, cfg.VERSION)
 
-    if cfg.train:
-        if cfg.MODEL.NAME=='dvd-gan':
+    if cfg.TRAIN.MODE:
+        if cfg.MODEL.NAME=='dvd_gan':
             trainer = Trainer(train_loader, cfg) 
         else:
             trainer = None
@@ -115,5 +115,5 @@ def main():
 
 
 if __name__ == '__main__':
-    print(cfg)
+    # print(cfg)
     main()
