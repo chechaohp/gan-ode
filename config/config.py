@@ -41,12 +41,12 @@ _C.LOG.LOG_EPOCH = 1
 _C.LOG.MODEL_SAVE_PATH = './save_models'
 _C.LOG.MODEL_SAVE_EPOCH = 200
 _C.LOG.SAMPLE_PATH = './samples'
-_C.LOG.SAMPLE_EPOCH = 20
+_C.LOG.SAMPLE_EPOCH = 200
 
 
 _C.TRAIN = CN()
 _C.TRAIN.MODE = True
-_C.TRAIN.LOSS = 'wgan-gp'
+_C.TRAIN.LOSS = 'hinge'
 _C.TRAIN.LAMBDA_GP = 10 # gradient penalty coef
 _C.TRAIN.TOTAL_EPOCH = 100000
 _C.TRAIN.D_ITERS = 1
