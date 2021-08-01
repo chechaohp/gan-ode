@@ -22,7 +22,10 @@ clear_output()
 ```
 
 ## Check list
-- [x] **Stage 0:** run DVD-GAN
-- [x] **Stage 1:** Implement DVD-GAN with Neural ODEs (**_FAILED_** need to much RAM to run, even [Google Colab Pro25GB RAM](https://colab.research.google.com/drive/1x_XYFomv3FWYj-LN7vO3uVaa8m6GOAIO?usp=sharing) cannot run it )
-- [ ] Stage 2: Implement training with ODE
-- [ ] Stage 3: Implement something novel
+- [x] **Stage 0:** **(Done)** refactor  run [DVD-GAN](https://github.com/Harrypotterrrr/DVD-GAN)
+- [x] **Stage 1:** **(Done)** Implement DVD-GAN with Neural ODEs (**_FAILED_** need to much RAM to run, even [Google Colab Pro25GB RAM](https://colab.research.google.com/drive/1x_XYFomv3FWYj-LN7vO3uVaa8m6GOAIO?usp=sharing) cannot run it )
+- [ ] **Stage 2:** **(On going)**Implement training with ODE
+    - [x] Euler's Method
+    - [x] Heun's Method (RK2)
+    - [x] Runge - Kutta 4 (RK4)
+- [ ] **Stage 3:** Implement something novel

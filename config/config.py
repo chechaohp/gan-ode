@@ -63,6 +63,8 @@ _C.TRAIN.TRAIN_CROP = 'corner'
 _C.TRAIN.LR_SCHR = 'const'
 _C.TRAIN.GPUS = ['0']
 _C.TRAIN.PARALLEL = False
+_C.TRAIN.ODE_TRAIN = False
+_C.TRAIN.ODE_METHOD = 'rk2'
 
 _C.TEST = CN()
 _C.TEST.TEST_SUBSET = 'val'
