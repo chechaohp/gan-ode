@@ -21,11 +21,13 @@ clear_output()
 !python3 utils/ucf101_json.py ../UCF101/annotations
 ```
 
+Current Colab training [Colab](https://colab.research.google.com/drive/1866LALVZWAE4PNTQdB3Vc643rA5HE5pO?authuser=2#scrollTo=rlhdraWwOsYV)
+
 ## Check list
 - [x] **Stage 0:** **(Done)** refactor  run [DVD-GAN](https://github.com/Harrypotterrrr/DVD-GAN)
-- [x] **Stage 1:** **(Done)** Implement DVD-GAN with Neural ODEs (**_FAILED_** need to much RAM to run, even [Google Colab Pro25GB RAM](https://colab.research.google.com/drive/1x_XYFomv3FWYj-LN7vO3uVaa8m6GOAIO?usp=sharing) cannot run it )
-- [ ] **Stage 2:** **(On going)**Implement training with ODE
+- [x] **Stage 1:** **(Done)** Implement DVD-GAN with Neural ODEs: replace ResNet block with ODE function and use [Augmented Neural ODE](https://arxiv.org/abs/1904.01681) (**_FAILED_** need to much RAM to run, even [Google Colab Pro 25GB RAM](https://colab.research.google.com/drive/1x_XYFomv3FWYj-LN7vO3uVaa8m6GOAIO?usp=sharing) cannot run it )
+- [ ] **Stage 2:** **(On going)** Implement training with ODE by following [this paper](https://arxiv.org/abs/2010.15040)
     - [x] Euler's Method
     - [x] Heun's Method (RK2)
     - [x] Runge - Kutta 4 (RK4)
-- [ ] **Stage 3:** Implement something novel
+- [ ] **Stage 3:** Implement something novel, might need to switch from DVD-GAN to MoCoGan [[PDF](https://arxiv.org/abs/1707.04993) - [Code](https://github.com/sergeytulyakov/mocogan)]
