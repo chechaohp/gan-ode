@@ -338,11 +338,11 @@ class Trainer(object):
             # Save model
             if step % self.model_save_step == 0:
                 torch.save(self.G.state_dict(),
-                           os.path.join(self.model_save_path, 'G.pth'))
+                           os.path.join(self.model_save_path, '{}_G.pth'.format(step)))
                 torch.save(self.D_s.state_dict(),
-                           os.path.join(self.model_save_path, 'Ds.pth'))
+                           os.path.join(self.model_save_path, '{}_Ds.pth'.format(step)))
                 torch.save(self.D_t.state_dict(),
-                           os.path.join(self.model_save_path, 'Dt.pth'))
+                           os.path.join(self.model_save_path, '{}_Dt.pth'.format(step)))
 
     def build_model(self):
 
@@ -376,11 +376,11 @@ class Trainer(object):
 
     def load_pretrained_model(self):
         self.G.load_state_dict(torch.load(os.path.join(
-            self.model_save_path, 'G.pth')))
+            self.model_save_path, '{}_G.pth'.format(self.pretrained_model))))
         self.D_s.load_state_dict(torch.load(os.path.join(
-            self.model_save_path, 'Ds.pth')))
+            self.model_save_path, '{}_Ds.pth'.format(self.pretrained_model))))
         self.D_t.load_state_dict(torch.load(os.path.join(
-            self.model_save_path, 'Dt.pth')))
+            self.model_save_path, '{}_Dt.pth'.format(self.pretrained_model))))
         print('loaded trained models (step: {})..!'.format(self.pretrained_model))
 
     def reset_grad(self):

@@ -3,15 +3,10 @@ import torch
 
 class GANODETrainer(object):
 
-    def __init__(self, g_params, ds_params, dt_params, g_loss, ds_loss, dt_loss, lr = 0.02, alpha=1, beta=1, reg=0.002, method='rk2'):
+    def __init__(self, g_params, ds_params, dt_params, lr = 0.005, reg=0.002, method='rk2'):
         self.g_params = list(g_params)
         self.ds_params = list(ds_params)
         self.dt_params = list(dt_params)
-        self.g_loss = g_loss
-        self.ds_loss = ds_loss
-        self.dt_loss = dt_loss
-        self.alpha = alpha
-        self.beta = beta
         self.lr = lr
         self.reg = reg
         self.method = method
@@ -27,7 +22,10 @@ class GANODETrainer(object):
         else:
             return self.rk4
 
-    def step(self):
+    def step(self,  g_loss, ds_loss, dt_loss):
+        self.g_loss = g_loss
+        self.ds_loss = ds_loss
+        self.dt_loss = dt_loss
         self.ode_step()
 
     def euler(self):
