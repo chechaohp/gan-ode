@@ -30,4 +30,5 @@ Current Colab training [Colab](https://colab.research.google.com/drive/1866LALVZ
     - [x] Euler's Method
     - [x] Heun's Method (RK2)
     - [x] Runge - Kutta 4 (RK4)
+    - [x] [Test with MNIST](https://colab.research.google.com/drive/1c1TG5QhptP_q2HS5Vi3IWFzt3SblU6bs?usp=sharing)
 - [ ] **Stage 3:** Implement something novel, might need to switch from DVD-GAN to MoCoGan [[PDF](https://arxiv.org/abs/1707.04993) - [Code](https://github.com/sergeytulyakov/mocogan)]

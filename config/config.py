@@ -1,7 +1,7 @@
 from yacs.config import CfgNode as CN
 
 _C = CN()
-_C.VERSION = '1'
+_C.VERSION = '2'
 
 _C.DATASET = CN()
 _C.DATASET.NAME = 'ucf101'
@@ -46,7 +46,7 @@ _C.LOG.SAMPLE_EPOCH = 500
 
 _C.TRAIN = CN()
 _C.TRAIN.MODE = True
-_C.TRAIN.LOSS = 'hinge'
+_C.TRAIN.LOSS = 'wgan-gp'
 _C.TRAIN.LAMBDA_GP = 10 # gradient penalty coef
 _C.TRAIN.TOTAL_EPOCH = 100000
 _C.TRAIN.D_ITERS = 1

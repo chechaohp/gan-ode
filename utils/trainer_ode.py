@@ -87,41 +87,21 @@ class Trainer(object):
 
     def label_sample(self):
         label = torch.randint(low=0, high=self.n_class, size=(self.batch_size, ))
-        # label = torch.LongTensor(self.batch_size, 1).random_()%self.n_class
-        # one_hot= torch.zeros(self.batch_size, self.n_class).scatter_(1, label, 1)
         return label.to(self.device)  # , one_hot.to(self.device)
 
-    def wgan_loss(self, real_img, fake_img, tag):
 
-        # Compute gradient penalty
-        alpha = torch.rand(real_img.size(0), 1, 1, 1).cuda().expand_as(real_img)
-        interpolated = torch.tensor(alpha * real_img.data + (1 - alpha) * fake_img.data, requires_grad=True)
-        if tag == 'S':
-            out = self.D_s(interpolated)
-        else:
-            out = self.D_t(interpolated)
-        grad = torch.autograd.grad(outputs=out,
-                                   inputs=interpolated,
-                                   grad_outputs=torch.ones(out.size()).cuda(),
-                                   retain_graph=True,
-                                   create_graph=True,
-                                   only_inputs=True)[0]
-
-        grad = grad.view(grad.size(0), -1)
-        grad_l2norm = torch.sqrt(torch.sum(grad ** 2, dim=1))
-        d_loss_gp = torch.mean((grad_l2norm - 1) ** 2)
-
-        # Backward + Optimize
-        loss = self.lambda_gp * d_loss_gp
-        return loss
-
-    def calc_loss(self, x, real_flag):
+    def calc_loss_dis(self, x, real_flag):
+        """ Hinge loss for discriminator
+        """
         if real_flag is True:
             x = -x
-        if self.adv_loss == 'wgan-gp':
-            loss = torch.mean(x)
-        elif self.adv_loss == 'hinge':
-            loss = torch.nn.ReLU()(1.0 + x).mean()
+        loss = torch.nn.ReLU()(1.0 + x).mean()
+        return loss
+
+    def calc_loss_gen(self, x):
+        """ Generator loss
+        """
+        loss = - torch.mean(x)
         return loss
 
     def gen_real_video(self, data_iter):
@@ -135,11 +115,6 @@ class Trainer(object):
 
         return real_videos.to(self.device), real_labels.to(self.device)
 
-    def select_opt_schr(self):
-        self.optimizer = GANODETrainer(filter(lambda p: p.requires_grad, self.G.parameters()),
-                                        filter(lambda p: p.requires_grad, self.D_s.parameters()),
-                                        filter(lambda p: p.requires_grad, self.D_t.parameters()))
-
 
     def epoch2step(self):
 
@@ -152,12 +127,56 @@ class Trainer(object):
         self.sample_step = self.sample_epoch * step_per_epoch
         self.model_save_step = self.model_save_epoch * step_per_epoch
 
+    def ds_loss(self, reaL_videos, real_labels, fake_videos_sample, z_class):
+        # B x C x T x H x W --> B x T x C x H x W
+        reaL_videos = reaL_videos.permute(0, 2, 1, 3, 4).contiguous()
+
+        # ============= Generate real video ============== #
+        real_videos_sample = sample_k_frames(reaL_videos, self.n_frames, self.k_sample)
+
+        # ================== Train D_s ================== #
+        # fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
+        ds_out_real = self.D_s(real_videos_sample, real_labels)
+        ds_out_fake = self.D_s(fake_videos_sample.detach(), z_class)
+        ds_loss_real = self.calc_loss_dis(ds_out_real, True)
+        ds_loss_fake = self.calc_loss_dis(ds_out_fake, False)
+
+        # Backward + Optimize
+        ds_loss = ds_loss_real + ds_loss_fake
+
+        return ds_loss
+
+    def dt_loss(self, real_videos, real_labels, fake_videos_downsample, z_class):
+        # ================== Train D_t ================== #
+        real_videos_downsample = vid_downsample(real_videos)
+        # fake_videos_downsample = vid_downsample(fake_videos)
+
+        dt_out_real = self.D_t(real_videos_downsample, real_labels)
+        dt_out_fake = self.D_t(fake_videos_downsample.detach(), z_class)
+        dt_loss_real = self.calc_loss_dis(dt_out_real, True)
+        dt_loss_fake = self.calc_loss_dis(dt_out_fake, False)
+
+        # Backward + Optimize
+        dt_loss = dt_loss_real + dt_loss_fake
+        return dt_loss
+        
+
+    def gen_loss(self, fake_videos_sample, fake_videos_downsample, z_class):
+        # Compute loss with fake images
+        g_s_out_fake = self.D_s(fake_videos_sample, z_class)  # Spatial Discrimminator loss
+        g_t_out_fake = self.D_t(fake_videos_downsample, z_class)  # Temporal Discriminator loss
+        g_s_loss = self.calc_loss_gen(g_s_out_fake)
+        g_t_loss = self.calc_loss_gen(g_t_out_fake)
+        g_loss = g_s_loss + g_t_loss
+        return g_loss
+
     def train(self):
 
         # Data iterator
         data_iter = iter(self.data_loader)
         self.epoch2step()
         print('total class:',self.n_class)
+        # to see how the video change through time
         fixed_z = torch.randn(self.test_batch_size * self.n_class, self.z_dim).to(self.device)
         # fixed_label = torch.randint(low=0, high=self.n_class, size=(self.test_batch_size, )).to(self.device)
         fixed_label = torch.tensor([i for i in range(self.n_class) for j in range(self.test_batch_size)]).to(self.device)
@@ -190,63 +209,17 @@ class Trainer(object):
 
             # B x C x T x H x W --> B x T x C x H x W
             real_videos = real_videos.permute(0, 2, 1, 3, 4).contiguous()
-
-            # ================ update D d_iters times ================ #
-            # for i in range(self.d_iters):
-
-            # ============= Generate real video ============== #
-            real_videos_sample = sample_k_frames(real_videos, self.n_frames, self.k_sample)
-
             # ============= Generate fake video ============== #
             # apply Gumbel Softmax
             z = torch.randn(self.batch_size, self.z_dim).to(self.device)
             z_class = self.label_sample()
             fake_videos = self.G(z, z_class)
 
-            # ================== Train D_s ================== #
             fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
-            ds_out_real = self.D_s(real_videos_sample, real_labels)
-            ds_out_fake = self.D_s(fake_videos_sample.detach(), z_class)
-            ds_loss_real = self.calc_loss(ds_out_real, True)
-            ds_loss_fake = self.calc_loss(ds_out_fake, False)
-
-            # Backward + Optimize
-            ds_loss = ds_loss_real + ds_loss_fake
-            # self.reset_grad()
-            # ds_loss.backward()
-            # self.ds_optimizer.step()
-            # self.ds_lr_scher.step()
-
-            # ================== Train D_t ================== #
-            real_videos_downsample = vid_downsample(real_videos)
             fake_videos_downsample = vid_downsample(fake_videos)
 
-            dt_out_real = self.D_t(real_videos_downsample, real_labels)
-            dt_out_fake = self.D_t(fake_videos_downsample.detach(), z_class)
-            dt_loss_real = self.calc_loss(dt_out_real, True)
-            dt_loss_fake = self.calc_loss(dt_out_fake, False)
-
-            # Backward + Optimize
-            dt_loss = dt_loss_real + dt_loss_fake
-            # self.reset_grad()
-            # dt_loss.backward()
-            # self.dt_optimizer.step()
-            # self.dt_lr_scher.step()
-
-            # =========== Train G and Gumbel noise =========== #
-            # Compute loss with fake images
-            g_s_out_fake = self.D_s(fake_videos_sample, z_class)  # Spatial Discrimminator loss
-            g_t_out_fake = self.D_t(fake_videos_downsample, z_class)  # Temporal Discriminator loss
-            g_s_loss = self.calc_loss(g_s_out_fake, True)
-            g_t_loss = self.calc_loss(g_t_out_fake, True)
-            g_loss = g_s_loss + g_t_loss
-            # g_loss = self.calc_loss(g_s_out_fake, True) + self.calc_loss(g_t_out_fake, True)
-
-            # Backward + Optimize
             self.reset_grad()
-            g_loss.backward()
-            self.g_optimizer.step()
-            self.g_lr_scher.step()
+            g_loss, ds_loss, dt_loss = self.ode_trainer.step(real_videos, real_labels, fake_videos_sample, fake_videos_downsample, z_class)
 
             # ==================== print & save part ==================== #
             # Print out log info
@@ -254,13 +227,12 @@ class Trainer(object):
                 elapsed = time.time() - start_time
                 elapsed = str(datetime.timedelta(seconds=elapsed))
                 start_time = time.time()
-                # log_str = "Epoch: [%d/%d], Step: [%d/%d], time: %s, ds_loss: %.4f, dt_loss: %.4f, g_s_loss: %.4f, g_t_loss: %.4f, g_loss: %.4f, lr: %.2e" % \
-                #     (self.epoch, self.total_epoch, step, self.total_step, elapsed, ds_loss, dt_loss, g_s_loss, g_t_loss, g_loss, self.g_lr_scher.get_lr()[0])
-                log_str = "Epoch: [%d/%d], Step: [%d/%d], time: %s, ds_loss: %.4f, dt_loss: %.4f, g_s_loss: %.4f, g_t_loss: %.4f, g_loss: %.4f, lr: %.2e" % \
-                    (self.epoch, self.total_epoch, step, self.total_step, elapsed, ds_loss, dt_loss, g_s_loss, g_t_loss, g_loss, self.g_lr_scher.get_last_lr()[0])
+
+                log_str = "Epoch: [%d/%d], Step: [%d/%d], time: %s, ds_loss: %.4f, dt_loss: %.4f, g_loss: %.4f, lr: %.2e" % \
+                    (self.epoch, self.total_epoch, step, self.total_step, elapsed, ds_loss, dt_loss, g_loss, self.ode_trainer.lr)
 
                 if self.use_tensorboard is True:
-                    write_log(self.writer, log_str, step, ds_loss_real, ds_loss_fake, ds_loss, dt_loss_real, dt_loss_fake, dt_loss, g_loss)
+                    write_log(self.writer, log_str, step, ds_loss, dt_loss, g_loss)
                 print(log_str)
 
             # Sample images
@@ -305,7 +277,7 @@ class Trainer(object):
         # self.G.apply(weights_init)
         # self.D.apply(weights_init)
 
-        self.select_opt_schr()
+        self.set_optimizer()
 
         self.c_loss = torch.nn.CrossEntropyLoss()
 
@@ -325,10 +297,18 @@ class Trainer(object):
             self.model_save_path, '{}_Dt.pth'.format(self.pretrained_model))))
         print('loaded trained models (step: {})..!'.format(self.pretrained_model))
 
+    def set_optimizer(self):
+        self.ode_trainer = GANODETrainer(self.G.parameters(),
+                                        self.D_s.parameters(),
+                                        self.D_t.parameters(),
+                                        self.gen_loss,
+                                        self.ds_loss,
+                                        self.dt_loss, method = 'rk4')
+
     def reset_grad(self):
-        self.ds_optimizer.zero_grad()
-        self.dt_optimizer.zero_grad()
-        self.g_optimizer.zero_grad()
+        self.G.zero_grad()
+        self.D_s.zero_grad()
+        self.D_t.zero_grad()
 
     def save_sample(self, data_iter):
         real_images, _ = next(data_iter)

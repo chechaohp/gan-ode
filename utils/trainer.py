@@ -343,6 +343,8 @@ class Trainer(object):
                            os.path.join(self.model_save_path, 'Ds.pth'))
                 torch.save(self.D_t.state_dict(),
                            os.path.join(self.model_save_path, 'Dt.pth'))
+                with open(os.path.join(self.model_save_path, 'current_step.txt'),'w') as file:
+                    file.write(str(step))
 
     def build_model(self):
 
