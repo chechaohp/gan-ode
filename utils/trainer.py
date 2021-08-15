@@ -169,13 +169,7 @@ class Trainer(object):
         return dt_loss, dt_loss_real, dt_loss_fake
 
     
-    def G_train(self):
-        z = torch.randn(self.batch_size, self.z_dim).to(self.device)
-        z_class = self.label_sample()
-        fake_videos = self.G(z, z_class)
-
-        fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
-        fake_videos_downsample = vid_downsample(fake_videos)
+    def G_train(self, fake_videos_sample, fake_videos_downsample, z_class):
 
         # Compute loss with fake images
         g_s_out_fake = self.D_s(fake_videos_sample, z_class)  # Spatial Discrimminator loss
@@ -321,9 +315,15 @@ class Trainer(object):
 
             # ==================== update G g_iters time ==================== #
 
-            for i in range(self.g_iters):
+            # for i in range(self.g_iters):
                 # =========== Train G and Gumbel noise =========== #
-                g_loss, g_s_loss, g_t_loss = self.G_train()
+                # z = torch.randn(self.batch_size, self.z_dim).to(self.device)
+                # z_class = self.label_sample()
+                # fake_videos = self.G(z, z_class)
+
+            fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
+            fake_videos_downsample = vid_downsample(fake_videos)
+            g_loss, g_s_loss, g_t_loss = self.G_train(fake_videos_sample, fake_videos_downsample, z_class)
 
             # ==================== print & save part ==================== #
             # Print out log info

@@ -34,7 +34,7 @@ def main():
     cudnn.benchmark = True
     # update config file
     args = get_args()
-    cfg.merge_from_file(args.experment_file)
+    cfg.merge_from_file(args.experiment_file)
     ##### Dataloader #####
     cfg.DATASET.VIDEO_PATH = os.path.join(cfg.DATASET.ROOT_PATH, cfg.DATASET.VIDEO_PATH)
     cfg.DATASET.ANNOTATION_PATH = os.path.join(cfg.DATASET.ROOT_PATH, cfg.DATASET.ANNOTATION_PATH)

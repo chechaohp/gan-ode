@@ -12,7 +12,7 @@ from models.Discriminators import SpatialDiscriminator, TemporalDiscriminator
 from utils.utils import *
 
 
-from ode_training import GANODETrainer
+from ode_training.gan_ode import GANODETrainer
 
 
 class Trainer(object):
@@ -129,7 +129,7 @@ class Trainer(object):
 
     def ds_loss(self, reaL_videos, real_labels, fake_videos_sample, z_class):
         # B x C x T x H x W --> B x T x C x H x W
-        reaL_videos = reaL_videos.permute(0, 2, 1, 3, 4).contiguous()
+        # reaL_videos = reaL_videos.permute(0, 2, 1, 3, 4).contiguous()
 
         # ============= Generate real video ============== #
         real_videos_sample = sample_k_frames(reaL_videos, self.n_frames, self.k_sample)
@@ -209,6 +209,7 @@ class Trainer(object):
 
             # B x C x T x H x W --> B x T x C x H x W
             real_videos = real_videos.permute(0, 2, 1, 3, 4).contiguous()
+            real_videos_sample = sample_k_frames(real_videos, self.n_frames, self.k_sample)
             # ============= Generate fake video ============== #
             for i in range(self.d_iters):
                 # apply Gumbel Softmax
@@ -220,16 +221,17 @@ class Trainer(object):
                 fake_videos_downsample = vid_downsample(fake_videos)
 
                 self.reset_grad()
+                # print(self.ds_loss(real_videos,real_labels,fake_videos_sample,z_class))
                 ds_loss, dt_loss = self.ode_trainer.d_step(real_videos, real_labels, fake_videos_sample, fake_videos_downsample, z_class)
 
-            for i in range(self.g_iters):
-                z = torch.randn(self.batch_size, self.z_dim).to(self.device)
-                z_class = self.label_sample()
-                fake_videos = self.G(z, z_class)
+            # for i in range(self.g_iters):
+                # z = torch.randn(self.batch_size, self.z_dim).to(self.device)
+                # z_class = self.label_sample()
+                # fake_videos = self.G(z, z_class)
 
-                fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
-                fake_videos_downsample = vid_downsample(fake_videos)
-                g_loss = self.ode_trainer.g_step(fake_videos_sample, fake_videos_downsample, z_class)
+                # fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
+                # fake_videos_downsample = vid_downsample(fake_videos)
+            g_loss = self.ode_trainer.g_step(fake_videos_sample, fake_videos_downsample, z_class)
 
             # ==================== print & save part ==================== #
             # Print out log info
@@ -308,12 +310,12 @@ class Trainer(object):
         print('loaded trained models (step: {})..!'.format(self.pretrained_model))
 
     def set_optimizer(self):
-        self.ode_trainer = GANODETrainer(self.G.parameters(),
-                                        self.D_s.parameters(),
-                                        self.D_t.parameters(),
+        self.ode_trainer = GANODETrainer([param for param in self.G.parameters() if param.requires_grad],
+                                        [param for param in self.D_s.parameters() if param.requires_grad],
+                                        [param for param in self.D_t.parameters() if param.requires_grad],
                                         self.gen_loss,
                                         self.ds_loss,
-                                        self.dt_loss, method = 'rk4')
+                                        self.dt_loss, method = 'rk2')
 
     def reset_grad(self):
         self.G.zero_grad()
