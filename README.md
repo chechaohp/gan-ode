@@ -33,3 +33,7 @@ Current Colab training [Colab](https://colab.research.google.com/drive/1866LALVZ
     - [x] [Test with MNIST](https://colab.research.google.com/drive/1c1TG5QhptP_q2HS5Vi3IWFzt3SblU6bs?usp=sharing)
     - [x] (Fail) [Test on DVD-GAN](https://colab.research.google.com/drive/1PvgvCnU29aS9Oxcw_8YUTGT9WWFjynFy?authuser=2#scrollTo=U72_748TpNmo) out of memory :'(
 - [ ] **Stage 3:** Implement something novel, might need to switch from DVD-GAN to MoCoGan [[PDF](https://arxiv.org/abs/1707.04993) - [Code](https://github.com/sergeytulyakov/mocogan)]
+
+## Notes
+- SGD\Euler seems to be more stable than other and Adam
+- Discriminator Regularization seem to work, gradient of G does not overshoot.
