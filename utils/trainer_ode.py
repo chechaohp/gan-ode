@@ -210,16 +210,26 @@ class Trainer(object):
             # B x C x T x H x W --> B x T x C x H x W
             real_videos = real_videos.permute(0, 2, 1, 3, 4).contiguous()
             # ============= Generate fake video ============== #
-            # apply Gumbel Softmax
-            z = torch.randn(self.batch_size, self.z_dim).to(self.device)
-            z_class = self.label_sample()
-            fake_videos = self.G(z, z_class)
+            for i in range(self.d_iters):
+                # apply Gumbel Softmax
+                z = torch.randn(self.batch_size, self.z_dim).to(self.device)
+                z_class = self.label_sample()
+                fake_videos = self.G(z, z_class)
 
-            fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
-            fake_videos_downsample = vid_downsample(fake_videos)
+                fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
+                fake_videos_downsample = vid_downsample(fake_videos)
 
-            self.reset_grad()
-            g_loss, ds_loss, dt_loss = self.ode_trainer.step(real_videos, real_labels, fake_videos_sample, fake_videos_downsample, z_class)
+                self.reset_grad()
+                ds_loss, dt_loss = self.ode_trainer.d_step(real_videos, real_labels, fake_videos_sample, fake_videos_downsample, z_class)
+
+            for i in range(self.g_iters):
+                z = torch.randn(self.batch_size, self.z_dim).to(self.device)
+                z_class = self.label_sample()
+                fake_videos = self.G(z, z_class)
+
+                fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
+                fake_videos_downsample = vid_downsample(fake_videos)
+                g_loss = self.ode_trainer.g_step(fake_videos_sample, fake_videos_downsample, z_class)
 
             # ==================== print & save part ==================== #
             # Print out log info

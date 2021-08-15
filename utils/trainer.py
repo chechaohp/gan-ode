@@ -112,6 +112,7 @@ class Trainer(object):
         loss = self.lambda_gp * d_loss_gp
         return loss
 
+
     def calc_loss(self, x, real_flag):
         if real_flag is True:
             x = -x
@@ -120,6 +121,76 @@ class Trainer(object):
         elif self.adv_loss == 'hinge':
             loss = torch.nn.ReLU()(1.0 + x).mean()
         return loss
+
+
+    def calc_loss_dis(self, x, real_flag):
+        """ Hinge loss for discriminator
+        """
+        if real_flag is True:
+            x = -x
+        loss = torch.nn.ReLU()(1.0 + x).mean()
+        return loss
+
+
+    def calc_loss_gen(self, x):
+        """ Generator loss
+        """
+        loss = - torch.mean(x)
+        return loss
+
+
+    def Ds_train(self, real_videos_sample, real_labels, fake_videos_sample, z_class):
+        ds_out_real = self.D_s(real_videos_sample, real_labels)
+        ds_out_fake = self.D_s(fake_videos_sample.detach(), z_class)
+        ds_loss_real = self.calc_loss_dis(ds_out_real, True)
+        ds_loss_fake = self.calc_loss_dis(ds_out_fake, False)
+
+        # Backward + Optimize
+        ds_loss = ds_loss_real + ds_loss_fake
+        self.reset_grad()
+        ds_loss.backward()
+        self.ds_optimizer.step()
+        self.ds_lr_scher.step()
+        return ds_loss, ds_loss_real, ds_loss_fake
+
+
+    def Dt_train(self, real_videos_downsample, real_labels, fake_videos_downsample, z_class):
+        dt_out_real = self.D_t(real_videos_downsample, real_labels)
+        dt_out_fake = self.D_t(fake_videos_downsample.detach(), z_class)
+        dt_loss_real = self.calc_loss_dis(dt_out_real, True)
+        dt_loss_fake = self.calc_loss_dis(dt_out_fake, False)
+
+        # Backward + Optimize
+        dt_loss = dt_loss_real + dt_loss_fake
+        self.reset_grad()
+        dt_loss.backward()
+        self.dt_optimizer.step()
+        self.dt_lr_scher.step()
+        return dt_loss, dt_loss_real, dt_loss_fake
+
+    
+    def G_train(self):
+        z = torch.randn(self.batch_size, self.z_dim).to(self.device)
+        z_class = self.label_sample()
+        fake_videos = self.G(z, z_class)
+
+        fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
+        fake_videos_downsample = vid_downsample(fake_videos)
+
+        # Compute loss with fake images
+        g_s_out_fake = self.D_s(fake_videos_sample, z_class)  # Spatial Discrimminator loss
+        g_t_out_fake = self.D_t(fake_videos_downsample, z_class)  # Temporal Discriminator loss
+        g_s_loss = self.calc_loss_gen(g_s_out_fake)
+        g_t_loss = self.calc_loss_gen(g_t_out_fake)
+        g_loss = g_s_loss + g_t_loss
+
+        # Backward + Optimize
+        self.reset_grad()
+        g_loss.backward()
+        self.g_optimizer.step()
+        self.g_lr_scher.step()
+        return g_loss, g_s_loss, g_t_loss
+
 
     def gen_real_video(self, data_iter):
 
@@ -240,71 +311,19 @@ class Trainer(object):
 
                 # ================== Train D_s ================== #
                 fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
-                ds_out_real = self.D_s(real_videos_sample, real_labels)
-                ds_out_fake = self.D_s(fake_videos_sample.detach(), z_class)
-                ds_loss_real = self.calc_loss(ds_out_real, True)
-                ds_loss_fake = self.calc_loss(ds_out_fake, False)
-
-                # Backward + Optimize
-                ds_loss = ds_loss_real + ds_loss_fake
-                self.reset_grad()
-                ds_loss.backward()
-                self.ds_optimizer.step()
-                self.ds_lr_scher.step()
+                ds_loss, ds_loss_real , ds_loss_fake = self.Ds_train(real_videos_sample, real_labels, fake_videos_sample, z_class)
 
                 # ================== Train D_t ================== #
                 real_videos_downsample = vid_downsample(real_videos)
                 fake_videos_downsample = vid_downsample(fake_videos)
-
-                dt_out_real = self.D_t(real_videos_downsample, real_labels)
-                dt_out_fake = self.D_t(fake_videos_downsample.detach(), z_class)
-                dt_loss_real = self.calc_loss(dt_out_real, True)
-                dt_loss_fake = self.calc_loss(dt_out_fake, False)
-
-                # Backward + Optimize
-                dt_loss = dt_loss_real + dt_loss_fake
-                self.reset_grad()
-                dt_loss.backward()
-                self.dt_optimizer.step()
-                self.dt_lr_scher.step()
-
-                # ================== Use wgan_gp ================== #
-                # if self.adv_loss == "wgan_gp":
-                #     dt_wgan_loss = self.wgan_loss(real_labels, fake_videos, 'T')
-                #     ds_wgan_loss = self.wgan_loss(real_labels, fake_videos, 'S')
-                #     self.reset_grad()
-                #     dt_wgan_loss.backward()
-                #     ds_wgan_loss.backward()
-                #     self.dt_optimizer.step()
-                #     self.ds_optimizer.step()
+                dt_loss, dt_loss_real , dt_loss_fake = self.Dt_train(real_videos_downsample, real_labels, fake_videos_downsample, z_class)
+                
 
             # ==================== update G g_iters time ==================== #
 
-            # for i in range(self.g_iters):
-
-                # ============= Generate fake video ============== #
-                # apply Gumbel Softmax
-                # if i > 1:
-                #     z = torch.randn(self.batch_size, self.z_dim).to(self.device)
-                #     z_class = self.label_sample()
-                #     fake_videos = self.G(z, z_class)
-                #     fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
-                #     fake_videos_downsample = vid_downsample(fake_videos)
-
-            # =========== Train G and Gumbel noise =========== #
-            # Compute loss with fake images
-            g_s_out_fake = self.D_s(fake_videos_sample, z_class)  # Spatial Discrimminator loss
-            g_t_out_fake = self.D_t(fake_videos_downsample, z_class)  # Temporal Discriminator loss
-            g_s_loss = self.calc_loss(g_s_out_fake, True)
-            g_t_loss = self.calc_loss(g_t_out_fake, True)
-            g_loss = g_s_loss + g_t_loss
-            # g_loss = self.calc_loss(g_s_out_fake, True) + self.calc_loss(g_t_out_fake, True)
-
-            # Backward + Optimize
-            self.reset_grad()
-            g_loss.backward()
-            self.g_optimizer.step()
-            self.g_lr_scher.step()
+            for i in range(self.g_iters):
+                # =========== Train G and Gumbel noise =========== #
+                g_loss, g_s_loss, g_t_loss = self.G_train()
 
             # ==================== print & save part ==================== #
             # Print out log info
