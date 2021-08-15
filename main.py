@@ -1,4 +1,5 @@
 from utils.trainer import Trainer
+from utils.trainer_ode import Trainer as TrainerODE
 # from tester import Tester
 from dataset.data_loader import Data_Loader
 from torch.backends import cudnn
@@ -20,11 +21,20 @@ from dataset.transform.target_transforms import Compose as TargetCompose
 from utils.get_dataset import get_training_set, get_validation_set, get_test_set
 from dataset.mean import get_mean
 
+import argparse
+
+def get_args():
+    parser = argparse.ArgumentParser(description='choose experiment setup.')
+    parser.add_argument('-e', '--experiment_file', default='experiments/default.yml',help="Student training config")
+    args = parser.parse_args()
+    return args
 
 def main():
     # For fast training
     cudnn.benchmark = True
-
+    # update config file
+    args = get_args()
+    cfg.merge_from_file(args.experment_file)
     ##### Dataloader #####
     cfg.DATASET.VIDEO_PATH = os.path.join(cfg.DATASET.ROOT_PATH, cfg.DATASET.VIDEO_PATH)
     cfg.DATASET.ANNOTATION_PATH = os.path.join(cfg.DATASET.ROOT_PATH, cfg.DATASET.ANNOTATION_PATH)
@@ -106,7 +116,7 @@ def main():
         if cfg.MODEL.NAME=='dvd_gan':
             trainer = Trainer(train_loader, cfg) 
         else:
-            trainer = None
+            trainer = TrainerODE(train_loader,cfg)
 
         trainer.train()
     else:
