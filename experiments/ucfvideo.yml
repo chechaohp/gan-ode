@@ -1,7 +1,9 @@
 VERSION: "ucf101video"
 
 MODEL:
-  NAME: 'dvd-gan'
+  NAME: "dvd-gan"
 
 DATASET:
-  NAME: 'ucf101-video'
+  NAME: "ucf101-video"
+  VIDEO_PATH: "video_classified"
+  ANNOTATION_PATH: "annotations"
