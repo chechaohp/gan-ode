@@ -93,6 +93,10 @@ class UCF101Video(Dataset):
         label = self.samples[self.indices[video_idx]][1]
 
         if self.transform is not None:
-            video = self.transform(video)
+            new_video = []
+            for image in video:
+                image = image.permute(1,0,2)
+                new_video.append(self.transform(image))
+            
 
         return video, label
