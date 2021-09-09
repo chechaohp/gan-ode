@@ -49,7 +49,7 @@ class ConvGRUCell(nn.Module):
         update = self.activation(self.update_gate(stacked_inputs))
         reset = self.activation(self.reset_gate(stacked_inputs))
         # out_inputs = torch.tanh(self.out_gate(torch.cat([x, prev_state * reset], dim=1)))
-        out_inputs = nn.ReLU(self.out_gate(torch.cat([x, prev_state * reset], dim=1)))
+        out_inputs = torch.relu(self.out_gate(torch.cat([x, prev_state * reset], dim=1)))
         new_state = prev_state * (1 - update) + out_inputs * update
 
         return new_state

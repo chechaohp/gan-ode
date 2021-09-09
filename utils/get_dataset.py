@@ -1,9 +1,9 @@
-from dataset import UCF101
+from dataset import UCF101, UCF101Video
 
 
 def get_training_set(cfg, spatial_transform, temporal_transform,
                      target_transform):
-    assert cfg.DATASET.NAME in ['ucf101']
+    assert cfg.DATASET.NAME in ['ucf101','ucf101-video']
 
     if cfg.DATASET.NAME == 'ucf101':
         training_data = UCF101(
@@ -13,6 +13,14 @@ def get_training_set(cfg, spatial_transform, temporal_transform,
             spatial_transform=spatial_transform,
             temporal_transform=temporal_transform,
             target_transform=target_transform)
+    elif cfg.DATASET.NAME == 'ucf101-video':
+        training_data = UCF101Video(
+            cfg.DATASET.ROOT_PATH,
+            cfg.DATASET.VIDEO_PATH,
+            cfg.DATASET.ANNOTATION_PATH,
+            frames_per_clip=20,
+            transform=spatial_transform
+        )
     
     return training_data
 
