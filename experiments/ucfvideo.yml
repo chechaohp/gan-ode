@@ -5,5 +5,5 @@ MODEL:
 
 DATASET:
   NAME: "ucf101-video"
-  VIDEO_PATH: "video_classified"
+  VIDEO_PATH: "videos_classified"
   ANNOTATION_PATH: "annotations"
