@@ -1,0 +1,10 @@
+VERSION: "ucf101video"
+
+MODEL:
+  NAME: "dvd_gan"
+
+DATASET:
+  NAME: "ucf101-video"
+  ROOT_PATH: '/mnt/e/UCF101'
+  VIDEO_PATH: "videos_classified"
+  ANNOTATION_PATH: "annotations"
