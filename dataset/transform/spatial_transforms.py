@@ -33,6 +33,9 @@ class Compose(object):
     def randomize_parameters(self):
         for t in self.transforms:
             t.randomize_parameters()
+    
+    def __str__(self):
+        return ','.join([type(t).__name__ for t in self.transforms])
 
 
 class ToTensor(object):

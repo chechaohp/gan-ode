@@ -5,6 +5,8 @@ from torch.utils.data import Dataset
 import os
 # from typing import Optional, Dict, Tuple, Callable, List, cast
 
+import torch
+
 
 class UCF101Video(Dataset):
     def __init__(self, 
@@ -98,6 +100,7 @@ class UCF101Video(Dataset):
         if self.transform is not None:
             self.transform.randomize_parameters()
             video = [self.transform(image) for image in video]
+            video = torch.stack(video, 0).permute(1, 0, 2, 3)
             
 
         return video, label

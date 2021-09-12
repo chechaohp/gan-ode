@@ -1,7 +1,7 @@
 VERSION: "ucf101video"
 
 MODEL:
-  NAME: "dvd-gan"
+  NAME: "dvd_gan"
 
 DATASET:
   NAME: "ucf101-video"
