@@ -1,6 +1,6 @@
-from torchvision.datasets.folder import make_dataset
-from torchvision.datasets.video_utils import VideoClips
-from torchvision.transforms import ToPILImage
+from torchvision_mod.datasets.folder import make_dataset
+from torchvision_mod.datasets.video_utils import VideoClips
+from torchvision_mod.transforms import ToPILImage
 from torch.utils.data import Dataset
 import os
 # from typing import Optional, Dict, Tuple, Callable, List, cast
