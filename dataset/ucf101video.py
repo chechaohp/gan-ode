@@ -1,8 +1,10 @@
 from torchvision.datasets.folder import make_dataset
 from torchvision.datasets.video_utils import VideoClips
+from torchvision.transforms import ToPILImage
 from torch.utils.data import Dataset
 import os
-from typing import Optional, Dict, Tuple, Callable, List, cast
+# from typing import Optional, Dict, Tuple, Callable, List, cast
+
 
 class UCF101Video(Dataset):
     def __init__(self, 
@@ -91,12 +93,11 @@ class UCF101Video(Dataset):
     def __getitem__(self, idx):
         video, audio, info, video_idx = self.video_clips.get_clip(idx)
         label = self.samples[self.indices[video_idx]][1]
-
+        video = video.permute(0,3,1,2)
+        video = [ToPILImage()(image) for image in video]
         if self.transform is not None:
-            new_video = []
-            for image in video:
-                image = image.permute(1,0,2)
-                new_video.append(self.transform(image))
+            self.transform.randomize_parameters()
+            video = [self.transform(image) for image in video]
             
 
         return video, label
