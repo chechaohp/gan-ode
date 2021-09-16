@@ -7,8 +7,9 @@ import torch.nn as nn
 from torchvision.utils import save_image, make_grid
 from torch.optim.lr_scheduler import ExponentialLR, ReduceLROnPlateau, StepLR, MultiStepLR
 
-from models.Generator import Generator
-from models.Discriminators import SpatialDiscriminator, TemporalDiscriminator
+from models.dvdgan.Generator import Generator as DVDGenerator
+from models.dvdgan.Discriminators import SpatialDiscriminator as DVDSpatialDiscriminator
+from models.dvdgan.Discriminators import TemporalDiscriminator as DVDTemporalDiscriminator
 from utils.utils import *
 
 
@@ -369,9 +370,9 @@ class Trainer(object):
 
         print("=" * 30, '\nBuild_model...')
 
-        self.G = Generator(self.z_dim, n_class=self.n_class, ch=self.g_chn, n_frames=self.n_frames).cuda()
-        self.D_s = SpatialDiscriminator(chn=self.ds_chn, n_class=self.n_class).cuda()
-        self.D_t = TemporalDiscriminator(chn=self.dt_chn, n_class=self.n_class).cuda()
+        self.G = DVDGenerator(self.z_dim, n_class=self.n_class, ch=self.g_chn, n_frames=self.n_frames).cuda()
+        self.D_s = DVDSpatialDiscriminator(chn=self.ds_chn, n_class=self.n_class).cuda()
+        self.D_t = DVDTemporalDiscriminator(chn=self.dt_chn, n_class=self.n_class).cuda()
 
         if self.parallel:
             print('Use parallel...')

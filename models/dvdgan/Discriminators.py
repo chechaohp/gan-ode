@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from torch.nn import init
 
-from models.Normalization import ConditionalNorm, SpectralNorm
+from models.dvdgan.Normalization import ConditionalNorm, SpectralNorm
 # from Module.Attention import SelfAttention
 # from Module.GResBlock import GResBlock
 

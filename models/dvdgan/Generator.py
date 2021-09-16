@@ -4,10 +4,10 @@ from torch.nn import functional as F
 
 from tensorboardX import SummaryWriter
 
-from models.GResBlock import GResBlock
-from models.Normalization import SpectralNorm
-from models.ConvGRU import ConvGRU
-from models.Attention import SelfAttention, SeparableAttn
+from models.dvdgan.GResBlock import GResBlock
+from models.dvdgan.Normalization import SpectralNorm
+from models.dvdgan.ConvGRU import ConvGRU
+from models.dvdgan.Attention import SelfAttention, SeparableAttn
 # from Module.CrossReplicaBN import ScaledCrossReplicaBatchNorm2d
 
 class Generator(nn.Module):
