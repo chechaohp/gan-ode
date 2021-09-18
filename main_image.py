@@ -37,6 +37,7 @@ def main():
     cfg.merge_from_file(args.experiment_file)
     ##### Dataloader #####
     if cfg.DATASET.NAME == 'ucf101':
+        # only use this when 
         cfg.DATASET.VIDEO_PATH = os.path.join(cfg.DATASET.ROOT_PATH, cfg.DATASET.VIDEO_PATH)
         cfg.DATASET.ANNOTATION_PATH = os.path.join(cfg.DATASET.ROOT_PATH, cfg.DATASET.ANNOTATION_PATH)
     cfg.DATASET.MEAN = get_mean(cfg.DATASET.NORM_VALUE, dataset=cfg.DATASET.MEAN_DATASET)

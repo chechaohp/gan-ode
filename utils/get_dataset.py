@@ -1,8 +1,8 @@
 from dataset import UCF101, UCF101Video
 
 
-def get_training_set(cfg, spatial_transform, temporal_transform,
-                     target_transform):
+def get_training_set(cfg, spatial_transform, temporal_transform = None,
+                     target_transform=None):
     assert cfg.DATASET.NAME in ['ucf101','ucf101-video']
 
     if cfg.DATASET.NAME == 'ucf101':

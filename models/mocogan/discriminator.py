@@ -139,43 +139,6 @@ class VideoDiscriminator(nn.Module):
         return h, None
 
 
-class VideoDiscriminator(nn.Module):
-    def __init__(self, n_channels, n_output_neurons=1, bn_use_gamma=True, use_noise=False, noise_sigma=None, ndf=64):
-        super().__init__()
-
-        self.n_channels = n_channels
-        self.n_output_neurons = n_output_neurons
-        self.use_noise = use_noise
-        self.bn_use_gamma = bn_use_gamma
-
-        self.main = nn.Sequential(
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(n_channels, ndf, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(ndf, ndf * 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.BatchNorm3d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(ndf * 2, ndf * 4, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.BatchNorm3d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(ndf * 4, ndf * 8, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.BatchNorm3d(ndf * 8),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv3d(ndf * 8, n_output_neurons, 4, 1, 0, bias=False),
-        )
-
-    def forward(self, input):
-        h = self.main(input).squeeze()
-
-        return h, None
-
 
 class CategoricalVideoDiscriminator(VideoDiscriminator):
     def __init__(self, n_channels, dim_categorical, n_output_neurons=1, use_noise=False, noise_sigma=None):

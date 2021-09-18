@@ -7,8 +7,8 @@ import torch.nn as nn
 from torchvision.utils import save_image, make_grid
 from torch.optim.lr_scheduler import ExponentialLR, ReduceLROnPlateau, StepLR, MultiStepLR
 
-from models.Generator import Generator
-from models.Discriminators import SpatialDiscriminator, TemporalDiscriminator
+from models.dvdgan.Generator import Generator
+from models.dvdgan.Discriminators import SpatialDiscriminator, TemporalDiscriminator
 from utils.utils import *
 
 
@@ -104,17 +104,6 @@ class Trainer(object):
         loss = - torch.mean(x)
         return loss
 
-    def gen_real_video(self, data_iter):
-
-        try:
-            real_videos, real_labels = next(data_iter)
-        except:
-            data_iter = iter(self.data_loader)
-            real_videos, real_labels = next(data_iter)
-            self.epoch += 1
-
-        return real_videos.to(self.device), real_labels.to(self.device)
-
 
     def epoch2step(self):
 
@@ -195,8 +184,6 @@ class Trainer(object):
         self.G.train()
 
         for step in range(start, self.total_step + 1):
-            # print(f'Step: {step}')
-            # real_videos, real_labels = self.gen_real_video(data_iter)
             try:
                 real_videos, real_labels = next(data_iter)
             except:
