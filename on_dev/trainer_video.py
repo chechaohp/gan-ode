@@ -2,10 +2,12 @@ import time
 import torch
 import datetime
 import os
+from torch._C import _log_api_usage_once
 
 import torch.nn as nn
 from torchvision.utils import save_image, make_grid
 from torch.optim.lr_scheduler import ExponentialLR, ReduceLROnPlateau, StepLR, MultiStepLR
+from torch.autograd import Variable
 
 from models.mocogan.generator import VideoGenerator
 from models.mocogan.discriminator import PatchImageDiscriminator
@@ -84,6 +86,10 @@ class Trainer(object):
         # build model
         self.build_model()
 
+        # set criterion FOR MOCOGAN
+        self.gan_criterion = nn.BCEWithLogitsLoss()
+        self.category_criterion = nn.CrossEntropyLoss()
+
         if self.use_tensorboard:
             self.build_tensorboard()
 
@@ -96,16 +102,15 @@ class Trainer(object):
         """ Create Generator and Discriminator
         """
         print("=" * 30, '\nBuild_model...')
+        self.G = VideoGenerator(self.input_channels, self.dim_z_content, self.dim_z_category, 
+                                    self.dim_z_motion, self.video_length)
+        self.D_s = PatchImageDiscriminator(self.input_channels, use_noise=self.use_noise, noise_sigma=self.noise_sigma)
+        self.D_t = PatchVideoDiscriminator(self.input_channels, use_noise=self.use_noise, noise_sigma=self.noise_sigma)
+        # if use GPU
         if self.device != "cpu":
-            self.G = VideoGenerator(self.input_channels, self.dim_z_content, self.dim_z_category, 
-                                        self.dim_z_motion, self.video_length)
-            self.D_s = PatchImageDiscriminator(self.input_channels, use_noise=self.use_noise, noise_sigma=self.noise_sigma)
-            self.D_t = PatchVideoDiscriminator(self.input_channels, use_noise=self.use_noise, noise_sigma=self.noise_sigma)
-        else:
-            self.G = VideoGenerator(self.input_channels, self.dim_z_content, self.dim_z_category, 
-                                        self.dim_z_motion, self.video_length).cuda()
-            self.D_s = PatchImageDiscriminator(self.input_channels, use_noise=self.use_noise, noise_sigma=self.noise_sigma).cuda()
-            self.D_t = PatchVideoDiscriminator(self.input_channels, use_noise=self.use_noise, noise_sigma=self.noise_sigma).cuda()
+            self.G.cuda()
+            self.D_s.cuda()
+            self.D_t.cuda()
         # when have multiple GPU
         if self.parallel:
             print('Use parallel...')
@@ -161,67 +166,52 @@ class Trainer(object):
                                                  verbose=True
                              )
 
-    def calc_loss_dis(self, x, real_flag):
-        """ Hinge loss for discriminator
-        """
-        if real_flag is True:
-            x = -x
-        loss = torch.nn.ReLU()(1.0 + x).mean()
-        return loss
 
+    def D_train(self, discriminator, real_batch, fake_batch, opt, scheduler, category = None):
+        opt.zero_grad()
+        real_labels, real_category = discriminator(real_batch)
+        fake_labels, fake_category = discriminator(fake_batch)
 
-    def calc_loss_gen(self, x):
-        """ Generator loss
-        """
-        loss = - torch.mean(x)
-        return loss
+        ones = torch.ones_like(real_labels)
+        zeros = torch.ones_like(fake_labels)
 
+        d_loss = self.gan_criterion(real_labels, ones) + self.gan_criterion(fake_labels, zeros)
 
-    def Ds_train(self, real_videos_sample, real_labels, fake_videos_sample, z_class):
-        ds_out_real = self.D_s(real_videos_sample, real_labels)
-        ds_out_fake = self.D_s(fake_videos_sample.detach(), z_class)
-        ds_loss_real = self.calc_loss_dis(ds_out_real, True)
-        ds_loss_fake = self.calc_loss_dis(ds_out_fake, False)
-
-        # Backward + Optimize
-        ds_loss = ds_loss_real + ds_loss_fake
-        self.reset_grad()
-        ds_loss.backward()
-        self.ds_optimizer.step()
-        self.ds_lr_scher.step()
-        return ds_loss, ds_loss_real, ds_loss_fake
-
-
-    def Dt_train(self, real_videos_downsample, real_labels, fake_videos_downsample, z_class):
-        dt_out_real = self.D_t(real_videos_downsample, real_labels)
-        dt_out_fake = self.D_t(fake_videos_downsample.detach(), z_class)
-        dt_loss_real = self.calc_loss_dis(dt_out_real, True)
-        dt_loss_fake = self.calc_loss_dis(dt_out_fake, False)
-
-        # Backward + Optimize
-        dt_loss = dt_loss_real + dt_loss_fake
-        self.reset_grad()
-        dt_loss.backward()
-        self.dt_optimizer.step()
-        self.dt_lr_scher.step()
-        return dt_loss, dt_loss_real, dt_loss_fake
+        if category is not None:
+            # ask the video discriminator to learn categories from training videos
+            category = Variable()
+            d_loss += self.category_criterion(real_category.squeeze(), category)
+        
+        d_loss.backward()
+        opt.step()
+        scheduler.step()
+        
+        return d_loss
 
     
-    def G_train(self, fake_videos_sample, fake_videos_downsample, z_class):
+    def G_train(self, image_discriminator, video_discriminator,
+                        fake_images, fake_videos, generated_video_categories ,opt,scheduler, category = False):
+        opt.zero_grad()
+        # train on images
+        fake_labels, fake_category = image_discriminator(fake_images)
+        all_ones = torch.ones_like(fake_labels)
 
-        # Compute loss with fake images
-        g_s_out_fake = self.D_s(fake_videos_sample, z_class)  # Spatial Discrimminator loss
-        g_t_out_fake = self.D_t(fake_videos_downsample, z_class)  # Temporal Discriminator loss
-        g_s_loss = self.calc_loss_gen(g_s_out_fake)
-        g_t_loss = self.calc_loss_gen(g_t_out_fake)
-        g_loss = g_s_loss + g_t_loss
+        g_loss = self.gan_criterion(fake_labels, all_ones)
 
-        # Backward + Optimize
-        self.reset_grad()
+        # train on videos
+        fake_labels, fake_category = video_discriminator(fake_videos)
+        all_ones = torch.ones_like(fake_labels)
+
+        g_loss += self.gan_criterion(fake_labels, all_ones)
+
+        if category:
+            g_loss += self.category_criterion(fake_category.squeeze(), generated_video_categories)
+
         g_loss.backward()
-        self.g_optimizer.step()
-        self.g_lr_scher.step()
-        return g_loss, g_s_loss, g_t_loss
+        opt.step()
+        scheduler.step()
+        
+        return g_loss
 
 
     def gen_real_video(self, data_iter):
@@ -253,8 +243,8 @@ class Trainer(object):
         data_iter = iter(self.data_loader)
         self.epoch2step()
         print('total class:',self.n_class)
+        # this part to check the learning process of a certain input
         fixed_z = torch.randn(self.test_batch_size * self.n_class, self.z_dim).to(self.device)
-        # fixed_label = torch.randint(low=0, high=self.n_class, size=(self.test_batch_size, )).to(self.device)
         fixed_label = torch.tensor([i for i in range(self.n_class) for j in range(self.test_batch_size)]).to(self.device)
 
         # Start with trained model
@@ -266,56 +256,36 @@ class Trainer(object):
         # Start time
         print("=" * 30, "\nStart training...")
         start_time = time.time()
+        # image discriminator
         self.D_s.train()
+        # video discriminator
         self.D_t.train()
+        # generator
         self.G.train()
+        step = start
 
-        for step in range(start, self.total_step + 1):
-            # print(f'Step: {step}')
-            # real_videos, real_labels = self.gen_real_video(data_iter)
-            try:
-                real_videos, real_labels = next(data_iter)
-            except:
-                data_iter = iter(self.data_loader)
-                real_videos, real_labels = next(data_iter)
-                self.epoch += 1
-
-            real_videos = real_videos.to(self.device)
-            real_labels = real_labels.to(self.device)
-
-            # B x C x T x H x W --> B x T x C x H x W
-            real_videos = real_videos.permute(0, 2, 1, 3, 4).contiguous()
-
+        # for step in range(start, self.total_step + 1):
+        while (step < self.total+step + 1):
             # ================ update D d_iters times ================ #
             for i in range(self.d_iters):
+                # get real label
+                try:
+                    real_videos, real_labels = next(data_iter)
+                except:
+                    data_iter = iter(self.data_loader)
+                    real_videos, real_labels = next(data_iter)
+                    self.epoch += 1
 
-                # ============= Generate real video ============== #
-                real_videos_sample = sample_k_frames(real_videos, self.n_frames, self.k_sample)
+                fake
 
-                # ============= Generate fake video ============== #
-                # apply Gumbel Softmax
-                z = torch.randn(self.batch_size, self.z_dim).to(self.device)
-                z_class = self.label_sample()
-                fake_videos = self.G(z, z_class)
-
-                # ================== Train D_s ================== #
-                fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
-                ds_loss, ds_loss_real , ds_loss_fake = self.Ds_train(real_videos_sample, real_labels, fake_videos_sample, z_class)
-
-                # ================== Train D_t ================== #
-                real_videos_downsample = vid_downsample(real_videos)
-                fake_videos_downsample = vid_downsample(fake_videos)
-                dt_loss, dt_loss_real , dt_loss_fake = self.Dt_train(real_videos_downsample, real_labels, fake_videos_downsample, z_class)
+                real_videos = real_videos.to(self.device)
+                real_labels = real_labels.to(self.device)
+                # train image discriminator
+                ds_loss = self.D_train(self.D_s, real_videos, )
+                step += 1
                 
 
             # ==================== update G g_iters time ==================== #
-
-            # for i in range(self.g_iters):
-                # =========== Train G and Gumbel noise =========== #
-                # z = torch.randn(self.batch_size, self.z_dim).to(self.device)
-                # z_class = self.label_sample()
-                # fake_videos = self.G(z, z_class)
-
             fake_videos_sample = sample_k_frames(fake_videos, self.n_frames, self.k_sample)
             fake_videos_downsample = vid_downsample(fake_videos)
             g_loss, g_s_loss, g_t_loss = self.G_train(fake_videos_sample, fake_videos_downsample, z_class)
@@ -359,6 +329,10 @@ class Trainer(object):
                            os.path.join(self.model_save_path, 'Dt.pth'))
                 with open(os.path.join(self.model_save_path, 'current_step.txt'),'w') as file:
                     file.write(str(step))
+
+    def sample_image_from_videos(self, real_videos):
+        #
+        pass
 
 
     def build_tensorboard(self):
