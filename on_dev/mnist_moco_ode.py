@@ -1,16 +1,23 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from skvideo import io
-from dataset import UCF101
+from dataset import MNISTRotationVideo, MNISTRotationImage
 from on_dev.mocogan import VideoDiscriminator, PatchImageDiscriminator
 from on_dev.mocogan_ode import VideoGenerator
 from on_dev.evaluation_metrics import calculate_inception_score
 from tqdm import tqdm
+from skvideo import io
+from pathlib import Path
 
 epochs = 100000
 batch_size = 32
 start_epoch = 0
+path = 'drive/MyDrive/moco_ode/mnist'
+
+Path('drive/MyDrive/moco_ode/checkpoints/'+path).mkdir(parents=True, exist_ok=True)
+Path('drive/MyDrive/moco_ode/video_samples/'+path).mkdir(parents=True, exist_ok=True)
+
+path_to_mnist_rot = 'drive/MyDrive/MNIST/rot-mnist.mat'
 
 
 def genSamples(g, n=8, e=1):
@@ -35,14 +42,17 @@ def genSamples(g, n=8, e=1):
 
 def train():
     # data
-    videoDataset = UCF101(dset, conf)
-    imgDataset = UCF101Images(dset, conf)
+    print("Read MNIST Rotation data")
+    videoDataset = MNISTRotationVideo(path_to_mnist_rot)
+    imgDataset = MNISTRotationImage(path_to_mnist_rot)
     videoLoader = torch.utils.data.DataLoader(videoDataset, batch_size=batch_size,
                                               shuffle=True,
                                               drop_last=True)
     imgLoader = torch.utils.data.DataLoader(imgDataset, batch_size=batch_size,
                                             shuffle=True,
                                             drop_last=True)
+
+    use_cuda = torch.cuda.is_available()
 
 
     def dataGen(loader):
@@ -53,9 +63,16 @@ def train():
     vidGen = dataGen(videoLoader)
     imgGen = dataGen(imgLoader)
     # gen model
-    disVid = VideoDiscriminator(3).cuda()
-    disImg = PatchImageDiscriminator(3).cuda()
-    gen = VideoGenerator(3, 50, 0, 16, 16).cuda()
+    # number of channel in dataset
+    n_channels = 1
+    disVid = VideoDiscriminator(n_channels)
+    disImg = PatchImageDiscriminator(n_channels)
+    gen = VideoGenerator(n_channels, 50, 0, 16, 16)
+
+    if use_cuda:
+        disVid.cuda()
+        disImg.cuda()
+        gen.cuda()
 
     # init optimizers and loss
     disVidOpt = torch.optim.Adam(disVid.parameters(), lr=2e-4, betas=(0.5, 0.999), weight_decay=1e-5)
@@ -64,23 +81,33 @@ def train():
     loss = nn.BCEWithLogitsLoss()
 
     # resume training
-    state_dicts = torch.load(f'checkpoints/{path}/state_normal67000.ckpt')
-    start_epoch = state_dicts['epoch'] + 1
+    resume = False
+    start_epoch = 0
+    if resume:
+        state_dicts = torch.load(f'checkpoints/{path}/state_normal67000.ckpt')
+        start_epoch = state_dicts['epoch'] + 1
 
-    gen.load_state_dict(state_dicts['model_state_dict'][0])
-    disVid.load_state_dict(state_dicts['model_state_dict'][1])
-    disImg.load_state_dict(state_dicts['model_state_dict'][2])
-    genOpt.load_state_dict(state_dicts['optimizer_state_dict'][0])
-    disVidOpt.load_state_dict(state_dicts['optimizer_state_dict'][1])
-    disImgOpt.load_state_dict(state_dicts['optimizer_state_dict'][2])
+        gen.load_state_dict(state_dicts['model_state_dict'][0])
+        disVid.load_state_dict(state_dicts['model_state_dict'][1])
+        disImg.load_state_dict(state_dicts['model_state_dict'][2])
+        genOpt.load_state_dict(state_dicts['optimizer_state_dict'][0])
+        disVidOpt.load_state_dict(state_dicts['optimizer_state_dict'][1])
+        disImgOpt.load_state_dict(state_dicts['optimizer_state_dict'][2])
 
     # train
     # isScores = []
-    isScores = list(np.load('epoch_is/mocogan_ode_inception.npy'))
+    if resume:
+        isScores = list(np.load('epoch_is/mocogan_ode_inception.npy'))
+    else:
+        isScores = []
+
     for epoch in tqdm(range(start_epoch, epochs)):
         # image discriminator
         disImgOpt.zero_grad()
-        real = next(imgGen).cuda()
+        if use_cuda:
+            real = next(imgGen).cuda()
+        else:
+            real = next(imgGen)
 
         pr, _ = disImg(real)
         with torch.no_grad():
@@ -94,7 +121,10 @@ def train():
 
         # video discriminator
         disVidOpt.zero_grad()
-        real = next(vidGen).cuda().transpose(1, 2)
+        if use_cuda:
+            real = next(vidGen).cuda().transpose(1, 2)
+        else:
+            real = next(vidGen).transpose(1,2)
 
         pr, _ = disVid(real)
         with torch.no_grad():

@@ -5,3 +5,10 @@ torchdiffeq
 yacs
 tensorboardx
 av
+opencv
+sk-video
+h5py
+pandas
+imageio
+matplotlib
+imageio-ffmpeg

@@ -105,3 +105,11 @@ class UCF101Video(Dataset):
             
 
         return video, label
+
+class UCF101Vid(torch.utils.data,Dataset):
+    def __init__(self,
+        root:str,
+        video_path:str,
+        annotation_path:str
+    ):
+        pass
