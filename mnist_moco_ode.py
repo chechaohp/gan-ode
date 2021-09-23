@@ -4,7 +4,7 @@ import numpy as np
 from dataset import MNISTRotationVideo, MNISTRotationImage
 from on_dev.mocogan import VideoDiscriminator, PatchImageDiscriminator
 from on_dev.mocogan_ode import VideoGenerator
-from on_dev.evaluation_metrics import calculate_inception_score
+# from on_dev.evaluation_metrics import calculate_inception_score
 from tqdm import tqdm
 from skvideo import io
 from pathlib import Path
@@ -81,10 +81,10 @@ def train():
     loss = nn.BCEWithLogitsLoss()
 
     # resume training
-    resume = False
+    resume = True
     start_epoch = 0
     if resume:
-        state_dicts = torch.load(f'checkpoints/{path}/state_normal67000.ckpt')
+        state_dicts = torch.load(f'{path}/state_normal1000.ckpt')
         start_epoch = state_dicts['epoch'] + 1
 
         gen.load_state_dict(state_dicts['model_state_dict'][0])
@@ -96,10 +96,10 @@ def train():
 
     # train
     # isScores = []
-    if resume:
-        isScores = list(np.load('epoch_is/mocogan_ode_inception.npy'))
-    else:
-        isScores = []
+    # if resume:
+    #     isScores = list(np.load('epoch_is/mocogan_ode_inception.npy'))
+    # else:
+    #     isScores = []
 
     for epoch in tqdm(range(start_epoch, epochs)):
         # image discriminator
@@ -149,14 +149,14 @@ def train():
         gen_loss.backward()
         genOpt.step()
         # print('Epoch', epoch, 'DisImg', dis_img_loss.item(), 'DisVid', dis_vid_loss.item(), 'Gen', gen_loss.item())
-        if epoch % 100 == 0:
+        if epoch % 1000 == 0:
             genSamples(gen, e=epoch)
             if epoch % 1000 == 0:
-                gen.cpu()
-                isScores.append(calculate_inception_score(gen, test=False,
-                                                          moco=True))
-                print(isScores[-1])
-                np.save('epoch_is/mocogan_ode_inception.npy', isScores)
+                # gen.cpu()
+                # isScores.append(calculate_inception_score(gen, test=False,
+                #                                           moco=True))
+                # print(isScores[-1])
+                # np.save('epoch_is/mocogan_ode_inception.npy', isScores)
                 gen.cuda()
                 torch.save({'epoch': epoch,
                             'model_state_dict': [gen.state_dict(),
@@ -165,7 +165,7 @@ def train():
                             'optimizer_state_dict': [genOpt.state_dict(),
                                                     disVidOpt.state_dict(),
                                                     disImgOpt.state_dict()]},
-                        f'checkpoints/{path}/state_normal{epoch}.ckpt')
+                        f'{path}/state_normal{epoch}.ckpt')
     torch.save({'epoch': epoch,
                 'model_state_dict': [gen.state_dict(),
                                      disVid.state_dict(),
@@ -173,11 +173,11 @@ def train():
                 'optimizer_state_dict': [genOpt.state_dict(),
                                          disVidOpt.state_dict(),
                                          disImgOpt.state_dict()]},
-               f'checkpoints/{path}/state_normal{epoch}.ckpt')
-    isScores.append(calculate_inception_score(gen, test=False,
-                                              moco=True))
-    np.save('epcoh_is/mocogan_ode_inception.npy', isScores)
-    print(isScores[-1])
+               f'{path}/state_normal{epoch}.ckpt')
+    # isScores.append(calculate_inception_score(gen, test=False,
+    #                                           moco=True))
+    # np.save('epcoh_is/mocogan_ode_inception.npy', isScores)
+    # print(isScores[-1])
 
 
 

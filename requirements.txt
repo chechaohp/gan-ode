@@ -5,7 +5,7 @@ torchdiffeq
 yacs
 tensorboardx
 av
-opencv
+opencv-python
 sk-video
 h5py
 pandas

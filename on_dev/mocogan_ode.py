@@ -18,8 +18,8 @@ class ODEFunc(nn.Module):
 
 class VideoGenerator(mocogan.VideoGenerator):
     def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,
-                 video_length, ode_fn=ODEFunc, dim_hidden=None, linear=True):
-        super().__init__(n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length)
+                 video_length, ode_fn=ODEFunc, dim_hidden=None, linear=True,ngf=64):
+        super().__init__(n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length,ngf=ngf)
         if dim_hidden:
             self.ode_fn = ode_fn(dim=dim_z_motion, dim_hidden=dim_hidden)
         else:
@@ -37,8 +37,10 @@ class VideoGenerator(mocogan.VideoGenerator):
 
     def sample_z_m(self, num_samples, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
-
-        x = torch.randn(num_samples, self.dim_z_motion, device='cuda')
+        
+        x = torch.randn(num_samples, self.dim_z_motion)
+        if torch.cuda.is_available():
+            x.cuda()
 
         x = self.linear(x)
 

@@ -1,163 +1,68 @@
 import torch
-import cupy as cp
+import torch.nn as nn
+from torch.autograd import Variable
+import torch.utils.data
+
+from torchvision.models.inception import inception_v3
+
 import numpy as np
-import chainer
-import cv2
-import scipy
-from on_dev.c3d_ft import C3DVersion1
-from tqdm import tqdm
+from scipy.stats import entropy
 
+def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
+    """Computes the inception score of the generated images imgs
+    imgs -- Torch dataset of (3xHxW) numpy images normalized in the range [-1, 1]
+    cuda -- whether or not to run on GPU
+    batch_size -- batch size for feeding into Inception v3
+    splits -- number of splits
+    ---
+    Original code from https://github.com/sbarratt/inception-score-pytorch/blob/master/inception_score.py
+    """
+    N = len(imgs)
 
-def calculate_inception_score(gen, n_samples=2048, batch_size=32, test=True, zdim=256, moco=False, reuse=False):
-    # generate samples
-    batches = n_samples // batch_size
-    if not reuse:
-        gen = gen.cuda()
-        gen.eval()
-        for i in range(batches):
-            with torch.no_grad():
-                z = torch.rand((batch_size, zdim), device='cuda')*2-1
-                if test:
-                    s = gen(z, test=True).cpu().detach().numpy()
-                elif moco:
-                    s = gen.sample_videos(batch_size)[0].cpu().detach().numpy()
-                else:
-                    s = gen(z).cpu().detach().numpy()
-            np.save(f'temp/vid{i}.npy', s)
-        gen.train()
-    del gen
-    torch.cuda.empty_cache()
+    assert batch_size > 0
+    assert N > batch_size
 
-    # load calc model
-    dir = 'evaluation/pfnet/chainer/models/conv3d_deepnetA_ucf.npz'
-    model = C3DVersion1(pretrained_model=dir).to_gpu()
-    mean = np.load('evaluation/mean2.npz')['mean'].astype('f')
-    mean = mean.reshape((3, 1, 16, 128, 171))[:, :, :, :, 21:21 + 128]
+    # Set up dtype
+    if cuda:
+        dtype = torch.cuda.FloatTensor
+    else:
+        if torch.cuda.is_available():
+            print("WARNING: You have a CUDA device, so you should probably set cuda=True")
+        dtype = torch.FloatTensor
 
-    # calc probabilities
-    out = []
-    for i in range(batches):
-        x = np.load(f'temp/vid{i}.npy')
-        n, c, f, h, w = x.shape
-        x = x.transpose(0, 2, 3, 4, 1).reshape(n * f, h, w, c)
-        x = x * 128 + 128
-        x_ = np.zeros((n * f, 128, 128, 3))
-        for t in range(n * f):
-            x_[t] = np.asarray(
-                cv2.resize(x[t], (128, 128), interpolation=cv2.INTER_CUBIC))
-        x = x_.transpose(3, 0, 1, 2).reshape(3, n, f, 128, 128)
-        s = x.shape
-        assert x.shape == s
-        x = x[::-1] - mean  # mean file is BGR while model outputs RGB
-        x = x[:, :, :, 8:8 + 112, 8:8 + 112].astype('f')
-        x = x.transpose(1, 0, 2, 3, 4)
-        x = cp.asarray(x)
-        with chainer.using_config('train', False) and \
-             chainer.no_backprop_mode():
-            out.append(model(x)['prob'].data.get())
+    # Set up dataloader
+    dataloader = torch.utils.data.DataLoader(imgs, batch_size=batch_size)
 
-    del model
-    del x
+    # Load inception model
+    inception_model = inception_v3(pretrained=True, transform_input=False).type(dtype)
+    inception_model.eval();
+    up = nn.Upsample(size=(299, 299), mode='bilinear').type(dtype)
+    def get_pred(x):
+        if resize:
+            x = up(x)
+        x = inception_model(x)
+        return torch.softmax(x).data.cpu().numpy()
 
-    out = np.concatenate(out, axis=0)
-    assert out.shape[0] == n_samples
+    # Get predictions
+    preds = np.zeros((N, 1000))
 
-    # find score
-    eps = 1e-7
-    p_marginal = np.mean(out, axis=0)
+    for i, batch in enumerate(dataloader, 0):
+        batch = batch.type(dtype)
+        batchv = Variable(batch)
+        batch_size_i = batch.size()[0]
 
-    kl = out * (np.log(out + eps) - np.log(p_marginal + eps))
-    kl = np.mean(np.sum(kl, axis=1))
+        preds[i*batch_size:i*batch_size + batch_size_i] = get_pred(batchv)
 
-    kl = np.exp(kl)
+    # Now compute the mean kl-div
+    split_scores = []
 
-    return kl
+    for k in range(splits):
+        part = preds[k * (N // splits): (k+1) * (N // splits), :]
+        py = np.mean(part, axis=0)
+        scores = []
+        for i in range(part.shape[0]):
+            pyx = part[i, :]
+            scores.append(entropy(pyx, py))
+        split_scores.append(np.exp(np.mean(scores)))
 
-   
-def calculate_fid_score(gen, n_samples=2048, batch_size=32, test=True, zdim=256, moco=False, reuse=False):
-    # generate samples
-    batches = n_samples // batch_size
-    if not reuse:
-        gen = gen.cuda()
-        gen.eval()
-        for i in range(batches):
-            with torch.no_grad():
-                z = torch.rand((batch_size, zdim), device='cuda')*2-1
-                if test:
-                    s = gen(z, test=True).cpu().detach().numpy()
-                elif moco:
-                    s = gen.sample_videos(batch_size)[0].cpu().detach().numpy()
-                else:
-                    s = gen(z).cpu().detach().numpy()
-            np.save(f'temp/vid{i}.npy', s)
-        gen.train()
-    del gen
-    torch.cuda.empty_cache()
-
-    # load calc model
-    dir = 'evaluation/pfnet/chainer/models/conv3d_deepnetA_ucf.npz'
-    model = C3DVersion1(pretrained_model=dir).to_gpu()
-    mean = np.load('evaluation/mean2.npz')['mean'].astype('f')
-    mean = mean.reshape((3, 1, 16, 128, 171))[:, :, :, :, 21:21 + 128]
-
-    # calc probabilities
-    out = []
-    for i in range(batches):
-        x = np.load(f'temp/vid{i}.npy')
-        n, c, f, h, w = x.shape
-        x = x.transpose(0, 2, 3, 4, 1).reshape(n * f, h, w, c)
-        x = x * 128 + 128
-        x_ = np.zeros((n * f, 128, 128, 3))
-        for t in range(n * f):
-            x_[t] = np.asarray(
-                cv2.resize(x[t], (128, 128), interpolation=cv2.INTER_CUBIC))
-        x = x_.transpose(3, 0, 1, 2).reshape(3, n, f, 128, 128)
-        s = x.shape
-        assert x.shape == s
-        x = x[::-1] - mean  # mean file is BGR while model outputs RGB
-        x = x[:, :, :, 8:8 + 112, 8:8 + 112].astype('f')
-        x = x.transpose(1, 0, 2, 3, 4)
-        x = cp.asarray(x)
-        with chainer.using_config('train', False) and \
-             chainer.no_backprop_mode():
-            out.append(model(x, layers=['fc7'])['fc7'].data.get())
-
-    del model
-    del x
-
-    out = np.concatenate(out, axis=0)
-    assert out.shape[0] == n_samples
-
-    # find score
-    ds_mean = np.load('evaluation/fid_mean.npy')
-    ds_cov = np.load('evaluation/fid_cov.npy')
-    sample_mean = np.mean(out, axis=0)
-    sample_cov = np.cov(out.T)
-
-    fid = 0
-    fid += np.sum((ds_mean - sample_mean) ** 2)
-    fid += np.trace(ds_cov + sample_cov - 2.0 * scipy.linalg.sqrtm(np.dot(ds_cov, sample_cov)))
-
-    return np.real(fid)
-
-
-def calculate_inception_score_confidence(gen, n_samples=2048, batch_size=32,
-                                         iterations=10, test=True, zdim=256,
-                                         moco=False, reuse=False):
-    scores = np.empty([iterations])
-    for i in tqdm(range(iterations)):
-        scores[i] = calculate_inception_score(gen, n_samples, batch_size, test, zdim, moco, reuse)
-        print(scores[i])
-
-    return scores.mean(), scores.std()
-
-
-def calculate_fid_score_confidence(gen, n_samples=2048, batch_size=32,
-                                   iterations=10, test=True, zdim=256,
-                                   moco=False, reuse=False):
-    scores = np.empty([iterations])
-    for i in tqdm(range(iterations)):
-        scores[i] = calculate_fid_score(gen, n_samples, batch_size, test, zdim, moco, reuse)
-        print(scores[i])
-
-    return scores.mean(), scores.std()
+    return np.mean(split_scores), np.std(split_scores)
