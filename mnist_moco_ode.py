@@ -12,12 +12,12 @@ from pathlib import Path
 epochs = 100000
 batch_size = 32
 start_epoch = 0
-path = 'drive/MyDrive/moco_ode/mnist'
+path = '../drive/MyDrive/moco_ode/mnist'
 
-Path('drive/MyDrive/moco_ode/checkpoints/'+path).mkdir(parents=True, exist_ok=True)
-Path('drive/MyDrive/moco_ode/video_samples/'+path).mkdir(parents=True, exist_ok=True)
+Path('../drive/MyDrive/moco_ode/checkpoints/'+path).mkdir(parents=True, exist_ok=True)
+Path('../drive/MyDrive/moco_ode/video_samples/'+path).mkdir(parents=True, exist_ok=True)
 
-path_to_mnist_rot = 'drive/MyDrive/MNIST/rot-mnist.mat'
+path_to_mnist_rot = '../drive/MyDrive/MNIST/rot-mnist.mat'
 
 
 def genSamples(g, n=8, e=1):
@@ -35,7 +35,7 @@ def genSamples(g, n=8, e=1):
     out = out.transpose((1, 2, 3, 0))
     out = (out + 1) / 2 * 255
     io.vwrite(
-        f'video_samples/{path}/gensamples_id{e}.gif',
+        f'../drive/MyDrive/moco_ode/video_samples/gensamples_id{e}.gif',
         out
     )
 
@@ -104,10 +104,10 @@ def train():
     for epoch in tqdm(range(start_epoch, epochs)):
         # image discriminator
         disImgOpt.zero_grad()
+        real, _ = next(imgGen)
+
         if use_cuda:
-            real = next(imgGen).cuda()
-        else:
-            real = next(imgGen)
+            real = real.cuda()
 
         pr, _ = disImg(real)
         with torch.no_grad():
@@ -121,10 +121,11 @@ def train():
 
         # video discriminator
         disVidOpt.zero_grad()
+        real,_ = next(vidGen)
         if use_cuda:
-            real = next(vidGen).cuda().transpose(1, 2)
+            real = real.cuda().transpose(1, 2)
         else:
-            real = next(vidGen).transpose(1,2)
+            real = real.transpose(1, 2)
 
         pr, _ = disVid(real)
         with torch.no_grad():
