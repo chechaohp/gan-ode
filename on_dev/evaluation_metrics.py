@@ -4,7 +4,7 @@ import numpy as np
 import chainer
 import cv2
 import scipy
-from c3d_ft import C3DVersion1
+from on_dev.c3d_ft import C3DVersion1
 from tqdm import tqdm
 
 

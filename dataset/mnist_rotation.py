@@ -17,10 +17,10 @@ class MNISTRotationVideo(Dataset):
 
         if train == True:
             self.X = self.X[:N].view([N,T,1,28,28])
-            self.Y = self.Y[:N].view([N,T,1,28,28])
+            self.Y = self.Y[:N]
         else:
             self.X = self.X[N:].view([N,T,1,28,28])
-            self.Y = self.Y[N:].view([N,T,1,28,28])
+            self.Y = self.Y[N:]
 
     def __len__(self):
         return len(self.Y)
@@ -29,7 +29,7 @@ class MNISTRotationVideo(Dataset):
         video = self.X[idx]
         if self.transform is not None:
             video = self.transform(video)
-        return video, self.Y[idx]
+        return video.float(), self.Y[idx]
 
 
 class MNISTRotationImage(Dataset):
@@ -46,10 +46,10 @@ class MNISTRotationImage(Dataset):
 
         if train == True:
             self.X = self.X[:N].view([N,T,1,28,28])
-            self.Y = self.Y[:N].view([N,T,1,28,28])
+            self.Y = self.Y[:N]
         else:
             self.X = self.X[N:].view([N,T,1,28,28])
-            self.Y = self.Y[N:].view([N,T,1,28,28])
+            self.Y = self.Y[N:]
 
     def __len__(self):
         return len(self.Y)
@@ -60,4 +60,4 @@ class MNISTRotationImage(Dataset):
         image = self.X[idx,random_frame_idx,:,:,:]
         if self.transform is not None:
             image = self.transform(image)
-        return image, self.Y[idx]
+        return image.float(), self.Y[idx]
