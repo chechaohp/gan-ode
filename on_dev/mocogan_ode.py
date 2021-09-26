@@ -53,3 +53,55 @@ class VideoGenerator(mocogan.VideoGenerator):
         return z_m_t
 
 
+class VideoGeneratorMNIST(mocogan.VideoGenerator):
+    def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,
+                 video_length, ode_fn=ODEFunc, dim_hidden=None, linear=True,ngf=64):
+        super().__init__(n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length,ngf=ngf)
+        if dim_hidden:
+            self.ode_fn = ode_fn(dim=dim_z_motion, dim_hidden=dim_hidden)
+        else:
+            self.ode_fn = ode_fn(dim=dim_z_motion)
+        dim_z = dim_z_motion + dim_z_category + dim_z_content
+        self.main = nn.Sequential(
+            nn.ConvTranspose2d(dim_z, ngf * 8, 2, 1, 0, bias=False),
+            nn.BatchNorm2d(ngf * 8),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ngf * 4),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ngf * 2),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(ngf * 2, ngf, 3, 2, 1, bias=False),
+            nn.BatchNorm2d(ngf),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(ngf, self.n_channels, 2, 2, 1, bias=False),
+            nn.Tanh()
+        )
+
+        if linear:
+            self.linear = nn.Sequential(
+                    nn.Linear(dim_z_motion, 64),
+                    nn.LeakyReLU(0.2),
+                    nn.Linear(64, dim_z_motion),
+                    nn.LeakyReLU(0.2)
+                    )
+        else:
+            self.linear = nn.Identity()
+
+    def sample_z_m(self, num_samples, video_len=None):
+        video_len = video_len if video_len is not None else self.video_length
+        
+        x = torch.randn(num_samples, self.dim_z_motion)
+        if torch.cuda.is_available():
+            x.cuda()
+
+        x = self.linear(x)
+
+        z_m_t = odeint(self.ode_fn, x,
+                       torch.linspace(0, 1, video_len).float(),
+                       method='rk4')
+
+        z_m_t = z_m_t.transpose(0, 1).reshape(-1, self.dim_z_motion)
+
+        return z_m_t

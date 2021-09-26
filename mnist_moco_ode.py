@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 from dataset import MNISTRotationVideo, MNISTRotationImage
 from on_dev.mocogan import VideoDiscriminator, PatchImageDiscriminator
-from on_dev.mocogan_ode import VideoGenerator
+from on_dev.mocogan_ode import VideoGeneratorMNIST
 # from on_dev.evaluation_metrics import calculate_inception_score
 from tqdm import tqdm
 from skvideo import io
@@ -67,7 +67,7 @@ def train():
     n_channels = 1
     disVid = VideoDiscriminator(n_channels)
     disImg = PatchImageDiscriminator(n_channels)
-    gen = VideoGenerator(n_channels, 50, 0, 16, 16)
+    gen = VideoGeneratorMNIST(n_channels, 50, 0, 16, 16)
 
     if use_cuda:
         disVid.cuda()
@@ -100,42 +100,46 @@ def train():
     #     isScores = list(np.load('epoch_is/mocogan_ode_inception.npy'))
     # else:
     #     isScores = []
+    d_iters = 2
 
     for epoch in tqdm(range(start_epoch, epochs)):
-        # image discriminator
-        disImgOpt.zero_grad()
-        real, _ = next(imgGen)
+        for i in range(d_iters):
+            # image discriminator
+            disImgOpt.zero_grad()
+            real, _ = next(imgGen)
 
-        if use_cuda:
-            real = real.cuda()
+            if use_cuda:
+                real = real.cuda()
 
-        pr, _ = disImg(real)
-        with torch.no_grad():
-            fake, _ = gen.sample_images(batch_size)
-        pf, _ = disImg(fake)
-        pr_labels = torch.ones_like(pr)
-        pf_labels = torch.zeros_like(pf)
-        dis_img_loss = loss(pr, pr_labels) + loss(pf, pf_labels)
-        dis_img_loss.backward()
-        disImgOpt.step()
+            pr, _ = disImg(real)
+            with torch.no_grad():
+                fake, _ = gen.sample_images(batch_size)
+            pf, _ = disImg(fake)
+            pr_labels = torch.ones_like(pr)
+            pf_labels = torch.zeros_like(pf)
+            dis_img_loss = loss(pr, pr_labels) + loss(pf, pf_labels)
+            # dis_img_loss_val = dis_img_loss.item()
+            dis_img_loss.backward()
+            disImgOpt.step()
 
-        # video discriminator
-        disVidOpt.zero_grad()
-        real,_ = next(vidGen)
-        if use_cuda:
-            real = real.cuda().transpose(1, 2)
-        else:
-            real = real.transpose(1, 2)
+            # video discriminator
+            disVidOpt.zero_grad()
+            real,_ = next(vidGen)
+            if use_cuda:
+                real = real.cuda().transpose(1, 2)
+            else:
+                real = real.transpose(1, 2)
 
-        pr, _ = disVid(real)
-        with torch.no_grad():
-            fake, _ = gen.sample_videos(batch_size)
-        pf, _ = disVid(fake)
-        pr_labels = torch.ones_like(pr)
-        pf_labels = torch.zeros_like(pf)
-        dis_vid_loss = loss(pr, pr_labels) + loss(pf, pf_labels)
-        dis_vid_loss.backward()
-        disVidOpt.step()
+            pr, _ = disVid(real)
+            with torch.no_grad():
+                fake, _ = gen.sample_videos(batch_size)
+            pf, _ = disVid(fake)
+            pr_labels = torch.ones_like(pr)
+            pf_labels = torch.zeros_like(pf)
+            dis_vid_loss = loss(pr, pr_labels) + loss(pf, pf_labels)
+            # dis_vid_loss_val = dis_vid_loss.item()
+            dis_vid_loss.backward()
+            disVidOpt.step()
 
         # generator
         genOpt.zero_grad()
@@ -146,9 +150,10 @@ def train():
         pf_vid_labels = torch.ones_like(pf_vid)
         pf_img_labels = torch.ones_like(pf_img)
         gen_loss = loss(pf_vid, pf_vid_labels) + loss(pf_img, pf_img_labels)
+        # gen_loss_val = gen_loss.item()
         gen_loss.backward()
         genOpt.step()
-        # print('Epoch', epoch, 'DisImg', dis_img_loss.item(), 'DisVid', dis_vid_loss.item(), 'Gen', gen_loss.item())
+        print('Epoch', epoch, 'DisImg', dis_img_loss.item(), 'DisVid', dis_vid_loss.item(), 'Gen', gen_loss.item())
         if epoch % 1000 == 0:
             genSamples(gen, e=epoch)
             if epoch % 1000 == 0:
