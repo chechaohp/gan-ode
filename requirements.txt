@@ -12,5 +12,5 @@ pandas
 imageio
 matplotlib
 imageio-ffmpeg
-upy-cuda111
+cupy-cuda111
 chainer
