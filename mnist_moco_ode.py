@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 from dataset import MNISTRotationVideo, MNISTRotationImage
 from on_dev.mocogan import VideoDiscriminator, PatchImageDiscriminator
-from on_dev.mocogan_ode import VideoGeneratorMNIST
+from on_dev.mocogan_ode import VideoGeneratorMNISTODE as VideoGeneratorMNIST
 # from on_dev.evaluation_metrics import calculate_inception_score
 from tqdm import tqdm
 from skvideo import io
@@ -20,17 +20,17 @@ Path('../drive/MyDrive/moco_ode/video_samples/'+path).mkdir(parents=True, exist_
 path_to_mnist_rot = '../drive/MyDrive/MNIST/rot-mnist.mat'
 
 
-def genSamples(g, n=8, e=1):
+def genSamples(g, n=8, e=1, size = 64):
     g.eval()
     with torch.no_grad():
         s = g.sample_videos(n**2)[0].cpu().detach().numpy()
     g.train()
 
-    out = np.zeros((3, 16, 64*n, 64*n))
+    out = np.zeros((3, 16, size*n, size*n))
 
     for j in range(n):
         for k in range(n):
-            out[:, :, 64*j:64*(j+1), 64*k:64*(k+1)] = s[j*n + k, :, :, :, :]
+            out[:, :, size*j:size*(j+1), size*k:size*(k+1)] = s[j*n + k, :, :, :, :]
 
     out = out.transpose((1, 2, 3, 0))
     out = (out + 1) / 2 * 255
@@ -65,7 +65,7 @@ def train():
     # gen model
     # number of channel in dataset
     n_channels = 1
-    disVid = VideoDiscriminator(n_channels)
+    disVid = VideoDiscriminator(n_channels,ksize=2)
     disImg = PatchImageDiscriminator(n_channels)
     gen = VideoGeneratorMNIST(n_channels, 50, 0, 16, 16)
 
@@ -81,7 +81,7 @@ def train():
     loss = nn.BCEWithLogitsLoss()
 
     # resume training
-    resume = True
+    resume = False
     start_epoch = 0
     if resume:
         state_dicts = torch.load(f'{path}/state_normal1000.ckpt')
@@ -153,9 +153,10 @@ def train():
         # gen_loss_val = gen_loss.item()
         gen_loss.backward()
         genOpt.step()
-        print('Epoch', epoch, 'DisImg', dis_img_loss.item(), 'DisVid', dis_vid_loss.item(), 'Gen', gen_loss.item())
+        if epoch % 100 == 0:
+            print('Epoch', epoch, 'DisImg', dis_img_loss.item(), 'DisVid', dis_vid_loss.item(), 'Gen', gen_loss.item())
         if epoch % 1000 == 0:
-            genSamples(gen, e=epoch)
+            genSamples(gen, e=epoch,size=28)
             if epoch % 1000 == 0:
                 # gen.cpu()
                 # isScores.append(calculate_inception_score(gen, test=False,
