@@ -8,16 +8,24 @@ from on_dev.mocogan_ode import VideoGeneratorMNISTODE as VideoGeneratorMNIST
 from tqdm import tqdm
 from skvideo import io
 from pathlib import Path
+import os
 
 epochs = 100000
 batch_size = 32
 start_epoch = 0
-path = '../drive/MyDrive/moco_ode/mnist'
+path = 'mnist-rand'
 
-Path('../drive/MyDrive/moco_ode/checkpoints/'+path).mkdir(parents=True, exist_ok=True)
-Path('../drive/MyDrive/moco_ode/video_samples/'+path).mkdir(parents=True, exist_ok=True)
+checkpoint_path = '../drive/MyDrive/moco_ode/checkpoints/'+path
+video_sample_path = '../drive/MyDrive/moco_ode/video_samples/'+path
 
-path_to_mnist_rot = '../drive/MyDrive/MNIST/rot-mnist.mat'
+if not os.path.exists(checkpoint_path):
+    os.mkdir(checkpoint_path)
+
+if not os.path.exists(video_sample_path):
+    os.mkdir(video_sample_path)
+
+
+path_to_mnist_rot = '../drive/MyDrive/MNIST/rot-mnist_rand.mat'
 
 
 def genSamples(g, n=8, e=1, size = 64):
@@ -35,7 +43,7 @@ def genSamples(g, n=8, e=1, size = 64):
     out = out.transpose((1, 2, 3, 0))
     out = (out + 1) / 2 * 255
     io.vwrite(
-        f'../drive/MyDrive/moco_ode/video_samples/gensamples_id{e}.gif',
+        f'{video_sample_path}/gensamples_id{e}.gif',
         out
     )
 
@@ -84,7 +92,7 @@ def train():
     resume = False
     start_epoch = 0
     if resume:
-        state_dicts = torch.load(f'{path}/state_normal1000.ckpt')
+        state_dicts = torch.load(f'{checkpoint_path}/state_normal1000.ckpt')
         start_epoch = state_dicts['epoch'] + 1
 
         gen.load_state_dict(state_dicts['model_state_dict'][0])
@@ -171,7 +179,7 @@ def train():
                             'optimizer_state_dict': [genOpt.state_dict(),
                                                     disVidOpt.state_dict(),
                                                     disImgOpt.state_dict()]},
-                        f'{path}/state_normal{epoch}.ckpt')
+                        f'{checkpoint_path}/state_normal{epoch}.ckpt')
     torch.save({'epoch': epoch,
                 'model_state_dict': [gen.state_dict(),
                                      disVid.state_dict(),
@@ -179,7 +187,7 @@ def train():
                 'optimizer_state_dict': [genOpt.state_dict(),
                                          disVidOpt.state_dict(),
                                          disImgOpt.state_dict()]},
-               f'{path}/state_normal{epoch}.ckpt')
+               f'{checkpoint_path}/state_normal{epoch}.ckpt')
     # isScores.append(calculate_inception_score(gen, test=False,
     #                                           moco=True))
     # np.save('epcoh_is/mocogan_ode_inception.npy', isScores)
