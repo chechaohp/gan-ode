@@ -98,9 +98,15 @@ Augment training data with rotated digits
 images: training images
 labels: training labels
 '''
-def rotate_data(images, labels, K=16):
+def rotate_data(images, labels, K=16, mode = 'normal'):
+    """
+    mode normal is the image  rotate clockwise 360 degree
+    mode rand-end is the image randomly rotate from original to an random angle
+    mode rsre (random start, random end)
+    """
+    assert mode in ['normal','rand-end','rsre']
 
-    # angles = np.linspace(0,359.99,K)
+    angles = np.linspace(0,359.99,K)
     # angles = np.linspace(0,360*(K-1)/K,K)
     X = np.zeros([len(images),K,784])
     Y = np.zeros([len(images),1])
@@ -111,14 +117,23 @@ def rotate_data(images, labels, K=16):
 
     k = 0 # counter
     for x, y in zip(images, labels):
-        # random angle differently for each image
-        end_angle = np.random.uniform(-269.99,269.99)
-        if end_angle < 0:
-            end_angle -= 90
-        else:
-            end_angle += 90
-        angles = np.linspace(0,end_angle,K)
-        #
+        if mode == 'rand-end':
+            # random angle differently for each image
+            end_angle = np.random.uniform(-269.99,269.99)
+            if end_angle < 0:
+                end_angle -= 90
+            else:
+                end_angle += 90
+            angles = np.linspace(0,end_angle,K)
+        elif mode == 'rsre':
+            # random angle differently for each image
+            start_angle = np.random.uniform(-89.99,89.99)
+            end_angle = np.random.uniform(-269.99,269.99)
+            # if end_angle < 0:
+            #     end_angle -= 90
+            # else:
+            #     end_angle += 90
+            angles = np.linspace(start_angle,end_angle,K)
         Y[k,0] = np.where(y==1)[0][0]
         bg_value = -0.5 # this is regarded as background's value black
 
