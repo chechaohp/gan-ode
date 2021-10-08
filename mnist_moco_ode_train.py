@@ -49,7 +49,7 @@ def genSamples(g, n=8, e=1, size = 64):
         out
     )
 
-def discriminator_train(discriminator, generator, real, loss_fn, use_cuda = True):
+def discriminator_train(real,discriminator, generator, loss_fn, use_cuda = True):
     if use_cuda:
         real = real.cuda()
     predict_real, _ = discriminator(real)
