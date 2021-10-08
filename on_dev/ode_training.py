@@ -42,7 +42,7 @@ class GANODETrainer(object):
             return self.rk4_step
     
 
-    def step(self,x, model = 'gen'):
+    def step(self,x = None, model = 'gen'):
         assert model in ['gen','dis_img','dis_vid']
         # self.dt_loss = dt_loss
         if model == 'gen':
