@@ -48,14 +48,14 @@ class GANODETrainer(object):
         if model == 'gen':
             loss = self.ode_step(self.g_params, self.g_loss, x, False)
         if model == 'dis_img':
-            loss = self.ode_step(self.dImg_params, self.dImg_loss, x, True)
+            loss = self.ode_step(self.dImg_params, self.dImg_loss, x, self.penalty)
         if model == 'dis_vid':
-            loss = self.ode_step(self.dVid_params, self.dVid_loss, x, True)
+            loss = self.ode_step(self.dVid_params, self.dVid_loss, x, self.penalty)
         return loss
 
     def calculate_reg(self, g_grad, d_params):
         g_grad_magnitude = sum(g.square().sum() for g in g_grad)
-        d_penalty = torch.autograd.grad(g_grad_magnitude, d_params)
+        d_penalty = torch.autograd.grad(g_grad_magnitude, d_params,allow_unused=True)
         # dt_penalty = torch.autograd.grad(g_grad_magnitude, self.dt_params)
         for g in g_grad:
             g.detach()
