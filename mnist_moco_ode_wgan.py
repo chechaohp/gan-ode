@@ -1,25 +1,21 @@
 import torch
 import torch.nn as nn
 import numpy as np
+# from torchgan.losses.wasserstein import WassersteinGeneratorLoss
 from dataset import MNISTRotationVideo, MNISTRotationImage
 from on_dev.mocogan import VideoDiscriminator, PatchImageDiscriminator
 from on_dev.mocogan_ode import VideoGeneratorMNISTODE as VideoGeneratorMNIST
 # from on_dev.evaluation_metrics import calculate_inception_score
-from on_dev.ode_training import GANODETrainer
-import functools
 from tqdm import tqdm
 from skvideo import io
+from pathlib import Path
 import os
-
-import torch
-import torch.nn as nn
-
+from torchgan.losses import WassersteinDiscriminatorLoss, WassersteinGeneratorLoss
 
 epochs = 100000
 batch_size = 32
 start_epoch = 0
-path = 'mnist-rand'
-d_iters = 2
+path = 'mnist-rand-3s-wgan'
 
 checkpoint_path = '../drive/MyDrive/moco_ode/checkpoints/'+path
 video_sample_path = '../drive/MyDrive/moco_ode/video_samples/'+path
@@ -31,7 +27,12 @@ if not os.path.exists(video_sample_path):
     os.mkdir(video_sample_path)
 
 
-path_to_mnist_rot = '../drive/MyDrive/MNIST/rot-mnist_rand.mat'
+path_to_mnist_rot = '../drive/MyDrive/MNIST/rot-mnist-3s.mat'
+
+def add_noise(parameters, sigma=0.0001):
+    with torch.no_grad():
+        for param in parameters:
+            param.add_(torch.randn_like(param)*sigma)
 
 
 def genSamples(g, n=8, e=1, size = 64):
@@ -53,40 +54,6 @@ def genSamples(g, n=8, e=1, size = 64):
         out
     )
 
-def discriminator_train(real,discriminator, generator, loss_fn, use_cuda = True):
-    # if it's video, transpose channel and time frame
-    video = False
-    if len(real.size()) > 4:
-        real = real.transpose(1,2)
-        video = True
-    if use_cuda:
-        real = real.cuda()
-    
-    predict_real, _ = discriminator(real)
-    with torch.no_grad():
-        if video:
-            fake, _ = generator.sample_videos(batch_size)
-        else:
-            fake, _ = generator.sample_images(batch_size)
-    predict_fake, _ = discriminator(fake)
-    pr_labels = torch.ones_like(predict_real)
-    pf_labels = torch.zeros_like(predict_fake)
-    dis_loss = loss_fn(predict_real, pr_labels) + loss_fn(predict_fake, pf_labels)
-    # dis_img_loss_val = dis_img_loss.item()
-    return dis_loss
-
-def generator_train(image_discriminator, video_discriminator, generator, loss_fn):
-    # generator
-    fakeVid, _ = generator.sample_videos(batch_size)
-    fakeImg, _ = generator.sample_images(batch_size)
-    predict_fake_vid, _ = video_discriminator(fakeVid)
-    predict_fake_img, _ = image_discriminator(fakeImg)
-    pf_vid_labels = torch.ones_like(predict_fake_vid)
-    pf_img_labels = torch.ones_like(predict_fake_img)
-    gen_loss = loss_fn(predict_fake_vid, pf_vid_labels) + loss_fn(predict_fake_img, pf_img_labels)
-    # gen_loss_val = gen_loss.item()
-    return gen_loss
-
 
 def train():
     # data
@@ -102,6 +69,7 @@ def train():
 
     use_cuda = torch.cuda.is_available()
 
+
     def dataGen(loader):
         while True:
             for d in loader:
@@ -114,7 +82,7 @@ def train():
     n_channels = 1
     disVid = VideoDiscriminator(n_channels,ksize=2)
     disImg = PatchImageDiscriminator(n_channels)
-    gen = VideoGeneratorMNIST(n_channels, 50, 0, 16, 16, linear=False)
+    gen = VideoGeneratorMNIST(n_channels, 50, 0, 16, 16)
 
     if use_cuda:
         disVid.cuda()
@@ -122,7 +90,12 @@ def train():
         gen.cuda()
 
     # init optimizers and loss
-    loss = nn.BCEWithLogitsLoss()
+    disVidOpt = torch.optim.Adam(disVid.parameters(), lr=2e-4, betas=(0.5, 0.999), weight_decay=1e-5)
+    disImgOpt = torch.optim.Adam(disImg.parameters(), lr=2e-4, betas=(0.5, 0.999), weight_decay=1e-5)
+    genOpt = torch.optim.Adam(gen.parameters(), lr=2e-4, betas=(0.5, 0.999), weight_decay=1e-5)
+    # loss = nn.BCEWithLogitsLoss()
+    gen_loss_fn = WassersteinGeneratorLoss()
+    dis_loss_fn = WassersteinDiscriminatorLoss()
 
     # resume training
     resume = False
@@ -134,6 +107,9 @@ def train():
         gen.load_state_dict(state_dicts['model_state_dict'][0])
         disVid.load_state_dict(state_dicts['model_state_dict'][1])
         disImg.load_state_dict(state_dicts['model_state_dict'][2])
+        genOpt.load_state_dict(state_dicts['optimizer_state_dict'][0])
+        disVidOpt.load_state_dict(state_dicts['optimizer_state_dict'][1])
+        disImgOpt.load_state_dict(state_dicts['optimizer_state_dict'][2])
 
     # train
     # isScores = []
@@ -141,28 +117,65 @@ def train():
     #     isScores = list(np.load('epoch_is/mocogan_ode_inception.npy'))
     # else:
     #     isScores = []
-    disImg_train = functools.partial(discriminator_train, discriminator=disImg, generator=gen, loss_fn=loss, use_cuda = use_cuda)
-    disVid_train = functools.partial(discriminator_train, discriminator=disVid, generator=gen, loss_fn=loss, use_cuda = use_cuda)
-    gen_train = functools.partial(generator_train, image_discriminator=disImg, video_discriminator=disVid, generator=gen, loss_fn=loss)
-    trainer = GANODETrainer(gen.parameters(), disImg.parameters(), disVid.parameters(),
-                            gen_train, 
-                            disImg_train, 
-                            disVid_train,
-                            method='rk4')
+    d_iters = 2
 
     for epoch in tqdm(range(start_epoch, epochs)):
         for i in range(d_iters):
             # image discriminator
+            disImgOpt.zero_grad()
             real, _ = next(imgGen)
-            dis_img_loss = trainer.step(real, model='dis_img')
-            # video discriminator
 
+            if use_cuda:
+                real = real.cuda()
+
+            pr, _ = disImg(real)
+            with torch.no_grad():
+                fake, _ = gen.sample_images(batch_size)
+            pf, _ = disImg(fake)
+            # pr_labels = torch.ones_like(pr)
+            # pf_labels = torch.zeros_like(pf)
+            # dis_img_loss = loss(pr, pr_labels) + loss(pf, pf_labels)
+            dis_img_loss = dis_loss_fn(pr,pf)
+            # dis_img_loss_val = dis_img_loss.item()
+            dis_img_loss.backward()
+            disImgOpt.step()
+            add_noise(disImg.parameters())
+
+            # video discriminator
+            disVidOpt.zero_grad()
             real,_ = next(vidGen)
-            dis_vid_loss = trainer.step(real, model='dis_vid')
+            if use_cuda:
+                real = real.cuda().transpose(1, 2)
+            else:
+                real = real.transpose(1, 2)
+
+            pr, _ = disVid(real)
+            with torch.no_grad():
+                fake, _ = gen.sample_videos(batch_size)
+            pf, _ = disVid(fake)
+            # pr_labels = torch.ones_like(pr)
+            # pf_labels = torch.zeros_like(pf)
+            # dis_vid_loss = loss(pr, pr_labels) + loss(pf, pf_labels)
+            dis_vid_loss = dis_loss_fn(pr,pf)
+            # dis_vid_loss_val = dis_vid_loss.item()
+            dis_vid_loss.backward()
+            disVidOpt.step()
+            add_noise(disVid.parameters())
 
         # generator
-        gen_loss = trainer.step(model='gen')
-
+        genOpt.zero_grad()
+        fakeVid, _ = gen.sample_videos(batch_size)
+        fakeImg, _ = gen.sample_images(batch_size)
+        pf_vid, _ = disVid(fakeVid)
+        pf_img, _ = disImg(fakeImg)
+        # pf_vid_labels = torch.ones_like(pf_vid)
+        # pf_img_labels = torch.ones_like(pf_img)
+        # gen_loss = loss(pf_vid, pf_vid_labels) + loss(pf_img, pf_img_labels)
+        gen_loss = gen_loss_fn(pf_img) + gen_loss_fn(pf_vid)
+        # gen_loss_val = gen_loss.item()
+        gen_loss.backward()
+        genOpt.step()
+        add_noise(gen.parameters())
         if epoch % 100 == 0:
             print('Epoch', epoch, 'DisImg', dis_img_loss.item(), 'DisVid', dis_vid_loss.item(), 'Gen', gen_loss.item())
         if epoch % 1000 == 0:
@@ -177,12 +190,18 @@ def train():
                 torch.save({'epoch': epoch,
                             'model_state_dict': [gen.state_dict(),
                                                 disVid.state_dict(),
-                                                disImg.state_dict()]},
+                                                disImg.state_dict()],
+                            'optimizer_state_dict': [genOpt.state_dict(),
+                                                    disVidOpt.state_dict(),
+                                                    disImgOpt.state_dict()]},
                         f'{checkpoint_path}/state_normal{epoch}.ckpt')
     torch.save({'epoch': epoch,
                 'model_state_dict': [gen.state_dict(),
                                      disVid.state_dict(),
-                                     disImg.state_dict()]},
+                                     disImg.state_dict()],
+                'optimizer_state_dict': [genOpt.state_dict(),
+                                         disVidOpt.state_dict(),
+                                         disImgOpt.state_dict()]},
                f'{checkpoint_path}/state_normal{epoch}.ckpt')
     # isScores.append(calculate_inception_score(gen, test=False,
     #                                           moco=True))
