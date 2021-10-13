@@ -53,9 +53,9 @@ def genSamples(g, n=8, e=1, size = 64):
 
 def train():
     # data
-    print("Read MNIST Rotation data")
+    print("Read UCF101 data")
     videoDataset = UCF101Video(root,video_path,annotation_path)
-    imgDataset = UCF101Image(root,video_path,annotation_path)
+    imgDataset = UCF101Image(root,video_path,annotation_path,samples = videoDataset.samples)
     videoLoader = torch.utils.data.DataLoader(videoDataset, batch_size=batch_size,
                                               shuffle=True,
                                               drop_last=True)
@@ -75,10 +75,10 @@ def train():
     imgGen = dataGen(imgLoader)
     # gen model
     # number of channel in dataset
-    n_channels = 1
+    n_channels = 3
     disVid = VideoDiscriminator(n_channels)
     disImg = PatchImageDiscriminator(n_channels)
-    gen = VideoGenerator(n_channels, 50, 0, 16, 16, dim_hidden=16)
+    gen = VideoGenerator(n_channels, 50, 0, 16, 16)
 
     if use_cuda:
         disVid.cuda()
@@ -166,9 +166,9 @@ def train():
         genOpt.step()
         if epoch % 100 == 0:
             print('Epoch', epoch, 'DisImg', dis_img_loss.item(), 'DisVid', dis_vid_loss.item(), 'Gen', gen_loss.item())
-        if epoch % 1000 == 0:
+        if epoch % 100 == 0:
             genSamples(gen, e=epoch)
-            if epoch % 1000 == 0:
+            if epoch % 100 == 0:
                 # gen.cpu()
                 # isScores.append(calculate_inception_score(gen, test=False,
                 #                                           moco=True))
