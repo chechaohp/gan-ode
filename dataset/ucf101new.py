@@ -85,7 +85,7 @@ class UCF101Video(Dataset):
         video = (video - 128.0)/128.0
         return video, _class
 
-class UCF101Video(UCF101Video):
+class UCF101Image(UCF101Video):
     def __init__(self, 
                 root:str, 
                 video_folder:str, 

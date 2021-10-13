@@ -15,3 +15,5 @@ imageio-ffmpeg
 cupy-cuda111
 chainer
 torchgan
+torchsde
+torchcde
