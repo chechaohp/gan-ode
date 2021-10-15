@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from on_dev.mocogan_ode import VideoGenerator
+from on_dev.mocogan_ode import VideoGeneratorMNIST
 from torchsde import sdeint_adjoint as sdeint
 
 class SDEFunc(nn.Module):
@@ -28,23 +28,9 @@ class SDEFunc(nn.Module):
 
 
 
-class VideoGeneratorSDE(VideoGenerator):
+class VideoGeneratorSDE(VideoGeneratorMNIST):
     def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length, dim_hidden=None, linear=True):
-        super().__init__(n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length,ngf=ngf)
-        if dim_hidden:
-            self.ode_fn = ode_fn(dim=dim_z_motion, dim_hidden=dim_hidden)
-        else:
-            self.ode_fn = ode_fn(dim=dim_z_motion)
-        
-        if linear:
-            self.linear = nn.Sequential(
-                    nn.Linear(dim_z_motion, 64),
-                    nn.LeakyReLU(0.2),
-                    nn.Linear(64, dim_z_motion),
-                    nn.LeakyReLU(0.2)
-                    )
-        else:
-            self.linear = nn.Identity()
+        super().__init__(n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length, ode_fn=SDEFunc, dim_hidden=dim_hidden, linear=False)
     
     def sample_z_m(self, num_samples, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
