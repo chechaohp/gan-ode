@@ -37,13 +37,15 @@ class VideoGenerator(mocogan.VideoGenerator):
                  video_length, ngf)
 
         self.ode_func = ode_func(dim_z_motion, dim_z_motion)
+        self.f = None #TODO
 
     def sample_z_m(self, num_samples, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
         # generate initial Z
-        z_0 = self.get_gru_initial_state(num_samples)
+        # z_0 = self.get_gru_initial_state(num_samples)
         # generate X
         X_t = self.get_iteration_noise(num_samples)
+        z_0 = self.f(X_t[0])
         # generate time
         t = torch.linspace(0,1, video_len)
         # repeat for sum_samples

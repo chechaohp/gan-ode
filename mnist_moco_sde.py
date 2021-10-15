@@ -7,13 +7,12 @@ from on_dev.mocogan_sde import VideoGeneratorSDE
 # from on_dev.evaluation_metrics import calculate_inception_score
 from tqdm import tqdm
 from skvideo import io
-from pathlib import Path
 import os
 
 epochs = 100000
 batch_size = 32
 start_epoch = 0
-path = 'mnist-rand'
+path = 'mnist-rand-sde'
 
 checkpoint_path = '../drive/MyDrive/moco_ode/checkpoints/'+path
 video_sample_path = '../drive/MyDrive/moco_ode/video_samples/'+path
