@@ -50,7 +50,7 @@ class VideoGeneratorCDE(VideoGeneratorMNIST):
             self.linear = nn.Identity()
 
         self.f = nn.Sequential(
-                    nn.Linear(dim_z_motion, 64),
+                    nn.Linear(cde_input_dim, 64),
                     nn.LeakyReLU(0.2),
                     nn.Linear(64, dim_z_motion),
                     nn.LeakyReLU(0.2)
@@ -63,6 +63,8 @@ class VideoGeneratorCDE(VideoGeneratorMNIST):
         # get batch size
         batch, _ = X_t.size()
         t = torch.linspace(0,1,video_len)
+        if torch.cuda.is_available():
+            t = t.cuda()
         # generate time
         t_ = t.repeat(batch).view(batch,video_len,1)
         x_ = X_t.view(batch,video_len,1)
@@ -75,7 +77,7 @@ class VideoGeneratorCDE(VideoGeneratorMNIST):
         z0 = self.f(X.evaluate(X.interval[0]))
         z_T = torchcde.cdeint(X=X,z0=z0,func=self.ode_fn,t=torch.arange(0,video_len).float())
         # reshape to match output size
-        z_T = z_T.view(-1,video_len)
+        z_T = z_T.reshape(-1,video_len)
 
         return z_T
 
