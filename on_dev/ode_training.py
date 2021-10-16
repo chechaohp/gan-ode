@@ -19,7 +19,10 @@ class GANODETrainer(object):
     def __init__(self, g_params, dImg_params, dVid_params, g_loss, dImg_loss, dVid_loss , lr = 0.02, reg=0.01, method='rk4', d_iter = 2, g_iter = 1):
         self.g_params = list(g_params)
         self.dImg_params = list(dImg_params)
-        self.dVid_params = list(dVid_params)
+        if dVid_params is not None:
+            self.dVid_params = list(dVid_params)
+        else:
+            self.dVid_params = None
         self.g_loss = g_loss
         self.dImg_loss = dImg_loss
         self.dVid_loss = dVid_loss

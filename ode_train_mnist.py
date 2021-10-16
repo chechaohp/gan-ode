@@ -131,16 +131,16 @@ fixed_test_z = torch.randn(bs,z_dim).to(device)
 
 for epoch in tqdm(range(1,n_epoch+1),desc='Training process'):
     for batch_idx, (x, _) in enumerate(train_loader):
-        for i in d_iter:
-            disLoss = ode_trainer.step(x,model='disImg')
+        for i in range(d_iter):
+            disLoss = ode_trainer.step(x,model='dis_img')
             d_losses.append(disLoss.item())
     
-        for i in g_iter:
+        for i in range(g_iter):
             genLoss = ode_trainer.step(model='gen')
             g_losses.append(genLoss)
         
     if (epoch % 10) == 0:
-        print(f'[EPOCH {epoch}/{n_epoch}] - Gen Loss f{genLoss.item()} disLoss {disLoss.item()}')
+        print(f'[EPOCH {epoch}/{n_epoch}] - Gen Loss {genLoss.item()} disLoss {disLoss.item()}')
         with torch.no_grad():
             generated = G(fixed_test_z)
             save_image(generated.view(generated.size(0), 1, 28, 28), f'./sample_{method}_{epoch}.png')
