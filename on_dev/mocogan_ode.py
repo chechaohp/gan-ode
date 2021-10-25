@@ -4,12 +4,13 @@ import on_dev.mocogan as mocogan
 from torchdiffeq import odeint_adjoint as odeint
 
 class ODEFunc(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, dim_hidden):
         super().__init__()
 
         self.fn = nn.Sequential(
-                nn.Linear(dim, dim),
-                nn.Tanh()
+                nn.Linear(dim, dim_hidden),
+                nn.Tanh(),
+                nn.Linear(dim_hidden, dim)
             )
 
     def forward(self, t, x):

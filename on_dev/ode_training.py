@@ -1,18 +1,4 @@
 import torch
-import torch.nn as nn
-
-class GeneratorGradientReg(nn.Module):
-    """ For
-    """
-    def __init__(self, g_params, reg):
-        super().__init__()
-        self.g_params = g_params
-        self.reg = reg
-    
-    def forward(self, g_loss):
-        g_grad = torch.autograd.grad(g_loss, self.g_params, create_graph = True)
-        g_grad_magnitude = sum(g.square().sum() for g in g_grad)
-        return self.reg * g_grad_magnitude
 
 class GANODETrainer(object):
 
@@ -59,7 +45,7 @@ class GANODETrainer(object):
             loss = self.ode_step(self.dVid_params, self.dVid_loss, x, self.penalty)
         return loss
 
-    def calculate_reg(self, d_params):
+    def calculate_reg(self):
         g_loss = self.g_loss()
         g_grad = torch.autograd.grad(g_loss, self.g_params,create_graph = True, allow_unused=True)
         g_grad_magnitude = sum(g.square().sum() for g in g_grad if g is not None)
@@ -81,7 +67,7 @@ class GANODETrainer(object):
         # find gradient
         grad1 = torch.autograd.grad(loss,params, allow_unused=True)
         if penalty:
-            g_grad_magnitude = self.calculate_reg(params)
+            g_grad_magnitude = self.calculate_reg()
             grad_penalty = torch.autograd.grad(g_grad_magnitude, params)
         # update parameter
         with torch.no_grad():
@@ -105,7 +91,7 @@ class GANODETrainer(object):
         # find gradient
         grad1 = torch.autograd.grad(loss1, params, allow_unused=True)
         if penalty:
-            g_grad_magnitude = self.calculate_reg(params)
+            g_grad_magnitude = self.calculate_reg()
             grad_penalty = torch.autograd.grad(g_grad_magnitude, params)
         # update for the first time
         # x1~ = x1 + h *grad1
@@ -149,7 +135,7 @@ class GANODETrainer(object):
         # find gradient
         grad1 = torch.autograd.grad(loss1, params, allow_unused=True)
         if penalty:
-            g_grad_magnitude = self.calculate_reg(params)
+            g_grad_magnitude = self.calculate_reg()
             grad_penalty = torch.autograd.grad(g_grad_magnitude, params)
 
         # update the first time
