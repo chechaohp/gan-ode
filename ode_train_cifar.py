@@ -1,14 +1,15 @@
 """
 Modified from https://github.com/pytorch/examples/blob/master/dcgan/main.py
 """
-from __future__ import print_function
-import argparse
+from __future__ import nested_scopes, print_function
+# import argparse
 import os
 import random
-import copy
+# import copy
 import datetime
 import torch
 import torch.nn as nn
+from torch.autograd import Variable
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.utils.data
@@ -17,10 +18,11 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from on_dev.ode_training import GANODETrainer
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 dataset = 'cifar10'
-dataroot = '../data'
-workers = 8
+dataroot = 'data'
+workers = 2
 batchSize = 64
 imageSize = 32
 nz = 128
@@ -31,7 +33,7 @@ cuda = torch.cuda.is_available()
 ngpu = 1
 netG = ''
 netD = ''
-outf = '../images'
+outf = 'images'
 ode = 'rk4'
 step_size = 0.01
 disc_reg = 0.01
@@ -65,26 +67,15 @@ if torch.cuda.is_available() and not cuda:
 if dataroot is None and str(dataset).lower() != 'fake':
     raise ValueError("`dataroot` parameter is required for dataset \"%s\"" % dataset)
 
-if dataset == 'cifar10':
-    dataset = dset.CIFAR10(root=dataroot, download=True,
-                            transform=transforms.Compose([
-                                transforms.Resize(imageSize),
-                                transforms.ToTensor(),
-                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                            ]))
-    nc = 3
 
-elif dataset == 'mnist':
-    dataset = dset.MNIST(root=dataroot, download=True,
-                            transform=transforms.Compose([
-                                transforms.Resize(imageSize),
-                                transforms.ToTensor(),
-                                transforms.Normalize((0.5,), (0.5,)),
-                            ]))
-    nc = 1
+dataset = dset.CIFAR10(root=dataroot, download=True,
+                        transform=transforms.Compose([
+                            transforms.Resize(imageSize),
+                            transforms.ToTensor(),
+                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                        ]))
+nc = 3
 
-
-assert dataset
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=batchSize,
                                             shuffle=True, num_workers=int(workers))
 
@@ -127,23 +118,12 @@ class Generator(nn.Module):
     def forward(self, input):
         if input.is_cuda and self.ngpu > 1:
             raise NotImplemented()
-            # output = nn.parallel.data_parallel(self.main, input, range(self.ngpu))
         else:
             x = self.project(input)
             x = x.view(-1, ngf * 8, 4, 4)
             output = self.main(x)
 
         return output
-
-
-# ODE GAN
-netG = Generator(ngpu)
-netG.apply(weights_init)
-netG = netG.to(device)
-
-if netG != '':
-    netG.load_state_dict(torch.load(netG))
-print(netG)
 
 
 class Discriminator(nn.Module):
@@ -190,13 +170,18 @@ class Discriminator(nn.Module):
         return output.view(-1, 1).squeeze(1)
 
 
+# ODE GAN
+netG = Generator(ngpu)
+netG.apply(weights_init)
+netG = netG.to(device)
+
+print(netG)
+
 netD = Discriminator(ngpu).to(device)
 netD.apply(weights_init)
 
 netD = netD.to(device)
 
-if netD != '':
-    netD.load_state_dict(torch.load(netD))
 print(netD)
 
 criterion = nn.BCEWithLogitsLoss()
@@ -208,132 +193,74 @@ fake_label = 0
 if dry_run:
     niter = 1
 
-# deep copies model + grads of model
-def grad_clone(source: torch.nn.Module) -> torch.nn.Module:
-    dest = copy.deepcopy(source)
-    dest.requires_grad_(True)
-
-    for s_p, d_p in zip(source.parameters(), dest.parameters()):
-        if s_p.grad is not None:
-            d_p.grad = s_p.grad.clone()
-
-    return dest
-
-# Inplace normalizes gradient; if grad_norm > 1
-def normalize_grad(grad: torch.Tensor) -> torch.Tensor:
-    # normalize gradient
-    grad_norm = grad.norm()
-    if grad_norm > 1.:
-        grad.div_(grad_norm)
-    return grad
-
-
-
-def gan_step(G: Generator, D: Discriminator, data, detach_err: bool = True, retain_graph: bool = False):
-    ############################
-    # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-    ###########################
-    # train with real
-    D.zero_grad()
+def dis_loss(data):
+    netD.zero_grad()
 
     real_cpu = data[0].to(device)
     batch_size = real_cpu.size(0)
     label = torch.full((batch_size,), real_label,
                         dtype=real_cpu.dtype, device=device)
 
-    output = D(real_cpu)
-    errD_real = criterion(output, label)
-    errD_real.backward()
-    D_x = output.mean().detach()
+    output = netD(real_cpu)
+    loss_real = criterion(output, label)
+    # D_x = output.mean().detach()
 
     # train with fake
     noise = torch.randn(batch_size, nz, 1, 1, device=device)
-    fake = G(noise)
-    label.fill_(fake_label)
-    output = D(fake.detach())
-    errD_fake = criterion(output, label)
-    errD_fake.backward()
-    D_G_z1 = output.mean().detach()
-    errD = errD_real + errD_fake
+    fake = netG(noise)
+    label = torch.full((batch_size,), fake_label,
+                        dtype=real_cpu.dtype, device=device)
+    output = netD(fake)
+    loss_fake = criterion(output, label)
+    # D_G_z1 = output.mean().detach()
+    loss = loss_real + loss_fake
+    return loss
 
-    if detach_err:
-        errD = errD.detach()
+def gen_loss():
+    netG.zero_grad()
+    noise = torch.randn(batchSize, nz, 1, 1, device=device)
+    # z = Variable(torch.randn(bathSize, z_dim).to(device))
+    label = torch.full((batchSize,), real_label,
+                    dtype=float, device=device)
 
-    DISC_GRAD_CACHE = grad_clone(D)
 
-    ############################
-    # (2) Update G network: maximize log(D(G(z)))
-    ###########################
-    G.zero_grad()
+    fake = netG(noise)
+    output = netD(fake)
+    loss = criterion(output, label)
+    return loss
 
-    label.fill_(real_label)  # fake labels are real for generator cost
-    output = D(fake)
-    errG = criterion(output, label)
-    errG.backward(create_graph=retain_graph)
-    D_G_z2 = output.mean().detach()
-
-    if detach_err:
-        errG = errG.detach()
-
-    GEN_GRAD_CACHE = grad_clone(G)
-
-    return DISC_GRAD_CACHE, GEN_GRAD_CACHE, errD, errG, D_x, D_G_z1, D_G_z2
 
 # Save hyper parameters
 # writer.add_hparams(vars(opt), metric_dict={})
 
 step_size = step_size
 global_step = 0
-trainer = GANODETrainer(netG.parameters(), netD.parameters(), None, g_loss, d_loss, None, step_size)
+trainer = GANODETrainer(netG.parameters(), netD.parameters(), None, gen_loss, dis_loss, None, step_size)
 
-for epoch in range(niter):
+
+d_iter = 2
+d_losses = []
+g_losses = []
+for epoch in tqdm(range(niter)):
+    j = 0
     for i, data in enumerate(dataloader, 0):
-        # Schedule
-        if global_step < 500:
-            step_size = step_size
-        elif global_step >= 500 and global_step <= 400000:
-            step_size = step_size * 4
-        elif global_step > 400000:
-            step_size = step_size * 2
-
-
-        elif ode == 'rk4':
-            netG, netD, errD, errG, D_x, D_G_z1, D_G_z2, gen_grad_norm, disc_grad_norm = rk4_ode_step(netG, netD,
-                                                                                                        data,
-                                                                                                        step_size=step_size,
-                                                                                                        disc_reg=disc_reg)
-
+        disLoss = trainer.step(data,model='dis_img')
+        d_losses.append(disLoss.item())
+        j+= 1
+        if j < d_iter:
+            continue
         else:
-            raise ValueError("Only support ode steps are - heun and rk4")
-
-        # Cast logits to sigmoid probabilities
-        D_x = D_x.sigmoid().item()
-        D_G_z1 = D_G_z1.sigmoid().item()
-        D_G_z2 = D_G_z2.sigmoid().item()
-
-        print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f '
-                'Gen Grad Norm: %0.4f Disc Grad Norm: %0.4f'
-                % (epoch, niter, i, len(dataloader),
-                    errD.item(), errG.item(), D_x, D_G_z1, D_G_z2, gen_grad_norm, disc_grad_norm))
-
-        writer.add_scalar('loss/discriminator', errD.item(), global_step=global_step)
-        writer.add_scalar('loss/generator', errG.item(), global_step=global_step)
-        writer.add_scalar('acc/D(x)', D_x, global_step=global_step)
-        writer.add_scalar('acc/D(G(z))-fake', D_G_z1, global_step=global_step)
-        writer.add_scalar('acc/D(G(z))-real', D_G_z2, global_step=global_step)
-        writer.add_scalar('norm/gen_grad_norm', gen_grad_norm, global_step=global_step)
-        writer.add_scalar('norm/disc_grad_norm', disc_grad_norm, global_step=global_step)
-        writer.add_scalar('step_size', step_size, global_step=global_step)
-
-        global_step += 1
+            j = 0
+    
+        genLoss = trainer.step(model='gen')
+        g_losses.append(genLoss)
+        
+        # global_step += 1
 
         if i % 100 == 0:
-            real_cpu = data[0].to(device)
-            vutils.save_image(real_cpu,
-                                '%s/real_samples.png' % outf,
-                                normalize=True)
-
-            # fake = netG(fixed_noise)
+            print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f'
+                % (epoch, niter, i, len(dataloader),
+                    disLoss.item(), genLoss.item()))
             random_noise = torch.randn(batchSize, nz, 1, 1, device=device)
 
             fake = netG(random_noise)
