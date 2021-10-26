@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 from on_dev.mocogan_ode import VideoGeneratorMNIST
-import torchdiffeq.odeint as odeint
+from torchdiffeq import odeint_adjoint as odeint
 
-class ODEFuncDeep(nn.Module):
+class ODEFunc(nn.Module):
     def __init__(self, dim, dim_hidden):
         super().__init__()
 
@@ -18,9 +18,9 @@ class ODEFuncDeep(nn.Module):
 
 
 
-class VideoGeneratorSDE(VideoGeneratorMNIST):
+class VideoGeneratorMNISTODERNN(VideoGeneratorMNIST):
     def __init__(self,n_channels, dim_z_content, dim_z_category, dim_z_motion,
-                 video_length, ode_fn=SDEFunc, dim_hidden=None, linear=True,ngf=64):
+                 video_length, ode_fn=ODEFunc, dim_hidden=None, linear=True,ngf=64):
         super().__init__(n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length,ngf=ngf)
         if dim_hidden:
             self.ode_fn = ode_fn(dim=dim_z_motion, dim_hidden=dim_hidden)
@@ -36,21 +36,6 @@ class VideoGeneratorSDE(VideoGeneratorMNIST):
                     )
         else:
             self.linear = nn.Identity()
-    
-    def sample_z_m(self, num_samples, video_len=None):
-        video_len = video_len if video_len is not None else self.video_length
-
-        x = torch.randn(num_samples, self.dim_z_motion, device='cuda')
-
-        x = self.linear(x)
-
-        z_m_t = odeint(self.ode_fn, x,
-                       torch.linspace(0, 1, video_len).float(),
-                       method='euler', adjoint_method='euler', dt=2.5e-2)
-
-        z_m_t = z_m_t.transpose(0, 1).reshape(-1, self.dim_z_motion)
-
-        return z_m_t
 
     def sample_z_m(self, num_samples, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
@@ -60,8 +45,7 @@ class VideoGeneratorSDE(VideoGeneratorMNIST):
         for frame_num in range(video_len):
             e_t = self.get_iteration_noise(num_samples)
             h_t_prime = odeint(self.ode_fn, h_t[-1],
-                       torch.linspace(0, 1, video_len).float(),
-                       method='rk4')
+                       torch.tensor([0,1]).float())[-1]
             h_t.append(self.recurrent(e_t, h_t_prime))
 
         z_m_t = [h_k.view(-1, 1, self.dim_z_motion) for h_k in h_t]
