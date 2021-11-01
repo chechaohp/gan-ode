@@ -2,7 +2,7 @@ Repo for my project **GAN with Neural ODEs for Video Generation**
 
 ### Prepare the data and requirements
 - To prepare the Rotated MNIST run file `utils/images.py`
-- To prepare the UCF101 data, run get_data_ucf101.sh
+- To prepare the UCF101 data, run `get_data_ucf101.sh`
 - To install all requirement package, run `pip install -r requirements.txt`
 ### How to run the code
 For each stage use the following files and folder
