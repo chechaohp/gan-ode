@@ -4,16 +4,12 @@ torchaudio
 torchdiffeq
 yacs
 tensorboardx
-# av
 opencv-python
 sk-video
-# h5py
 pandas
 imageio
 matplotlib
 imageio-ffmpeg
-# cupy-cuda111
-# chainer
 torchgan
 torchsde
 torchcde

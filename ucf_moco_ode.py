@@ -2,12 +2,11 @@ import torch
 import torch.nn as nn
 import numpy as np
 from dataset import UCF101Video, UCF101Image
-from on_dev.mocogan import VideoDiscriminator, PatchImageDiscriminator
-from on_dev.mocogan_ode import VideoGenerator
+from models.mocogan import VideoDiscriminator, PatchImageDiscriminator
+from models.mocogan_ode import VideoGenerator
 # from on_dev.evaluation_metrics import calculate_inception_score
 from tqdm import tqdm
 from skvideo import io
-from pathlib import Path
 import os
 
 epochs = 100000

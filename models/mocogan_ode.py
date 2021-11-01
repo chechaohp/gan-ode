@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import on_dev.mocogan as mocogan
+import models.mocogan as mocogan
 from torchdiffeq import odeint_adjoint as odeint
 
 class ODEFunc(nn.Module):
@@ -61,7 +61,7 @@ class VideoGeneratorMNIST(mocogan.VideoGenerator):
         if dim_hidden:
             self.ode_fn = ode_fn(dim=dim_z_motion, dim_hidden=dim_hidden)
         else:
-            self.ode_fn = ode_fn(dim=dim_z_motion)
+            self.ode_fn = ode_fn(dim=dim_z_motion, dim_hidden=dim_z_motion)
         dim_z = dim_z_motion + dim_z_category + dim_z_content
         self.main = nn.Sequential(
             nn.ConvTranspose2d(dim_z, ngf * 8, 4, 1, 0, bias=False),
@@ -118,7 +118,7 @@ class VideoGeneratorMNISTODE(VideoGeneratorMNIST):
         if dim_hidden:
             self.ode_fn = ode_fn(dim=dim_z_motion, dim_hidden=dim_hidden)
         else:
-            self.ode_fn = ode_fn(dim=dim_z_motion)
+            self.ode_fn = ode_fn(dim=dim_z_motion, dim_hidden=dim_z_motion)
         
         if linear:
             self.linear = nn.Sequential(

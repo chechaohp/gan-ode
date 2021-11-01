@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 from dataset import MNISTRotationVideo, MNISTRotationImage
-from on_dev.mocogan import VideoDiscriminator, PatchImageDiscriminator
-from on_dev.mocogan_cde import VideoGeneratorCDE
+from models.mocogan import VideoDiscriminator, PatchImageDiscriminator
+from models.mocogan_cde import VideoGeneratorCDE
 # from on_dev.evaluation_metrics import calculate_inception_score
 from tqdm import tqdm
 from skvideo import io
