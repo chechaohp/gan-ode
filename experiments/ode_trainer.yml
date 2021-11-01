@@ -1,4 +1,0 @@
-VERSION: "ode-training"
-
-MODEL:
-  NAME: 'ode-gan'
